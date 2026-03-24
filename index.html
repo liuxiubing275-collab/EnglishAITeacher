@@ -5,18 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AI 英语私教</title>
     <style>
-        body { font-family: -apple-system, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f9; color: #333; }
-        h1 { text-align: center; color: #2c3e50; }
-        .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        button { background-color: #007aff; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 16px; width: 100%; margin-top: 10px; cursor: pointer; }
-        button:active { background-color: #005bb5; }
-        .row-buttons { display: flex; gap: 10px; } 
-        .row-buttons button { margin-top: 10px; }
-        textarea, input { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 18px; }
-        #wordResult, #dictationResult { margin-top: 10px; font-weight: bold; min-height: 24px;}
-        .word-counter { font-size: 14px; color: #7f8c8d; float: right; }
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background-color: #f2f2f7; color: #333; }
+        h1 { text-align: center; color: #1c1c1e; font-size: 24px; margin-bottom: 20px; }
         
-        /* 单词模糊特效 */
+        /* 仿 iOS 顶部导航栏 (Segmented Control) */
+        .nav-bar { display: flex; background-color: #e3e3e8; border-radius: 10px; padding: 4px; margin-bottom: 20px; }
+        .nav-btn { flex: 1; background: transparent; color: #8e8e93; border: none; padding: 10px 0; margin: 0; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; transition: 0.3s ease; }
+        .nav-btn.active { background: white; color: #007aff; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        /* 页面显示与隐藏控制 */
+        .page-section { display: none; animation: fadeIn 0.3s ease; }
+        .page-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 卡片样式 */
+        .card { background: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        h2 { font-size: 18px; margin-top: 0; color: #2c3e50; }
+        
+        /* 按钮与输入框 */
+        button.action-btn { background-color: #007aff; color: white; border: none; padding: 14px 20px; border-radius: 12px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 10px; cursor: pointer; }
+        button.action-btn:active { opacity: 0.8; }
+        .row-buttons { display: flex; gap: 10px; } 
+        .row-buttons button { margin-top: 10px; flex: 1; }
+        textarea, input[type="text"] { width: 100%; padding: 14px; margin-top: 10px; border-radius: 10px; border: 1px solid #d1d1d6; box-sizing: border-box; font-size: 16px; background-color: #fafafa; }
+        
+        /* 特殊文本显示 */
+        .result-text { margin-top: 10px; font-weight: bold; min-height: 24px; font-size: 15px; }
+        .word-counter { font-size: 14px; color: #8e8e93; float: right; font-weight: normal; }
         #targetWord { transition: filter 0.3s ease; cursor: pointer; }
         .hint-text { font-size: 12px; color: #95a5a6; text-align: center; display: block; margin-top: -10px; }
     </style>
@@ -25,61 +40,97 @@
 
     <h1>🚀 AI 英语私教</h1>
 
-    <!-- 全局控制区：当前单词 -->
-    <div class="card" style="border: 2px solid #3498db;">
-        <h2>🗣️ 当前学习单词
-            <span id="wordCounter" class="word-counter">1/1</span>
-        </h2>
-        <p>
-            <strong style="font-size: 32px; color: #27ae60; display: block; text-align: center; margin: 15px 0;" id="targetWord" onclick="toggleBlur()">加载中...</strong>
-            <span class="hint-text">👆 点击播放发音时会自动模糊遮挡单词</span>
-        </p>
-        
-        <div class="row-buttons">
-            <button onclick="readTargetWord()" style="background-color: #27ae60;">🔊 听标准发音</button>
-            <button onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button>
+    <!-- 顶部分段控制器（导航栏） -->
+    <div class="nav-bar">
+        <button id="btn-words" class="nav-btn active" onclick="switchTab('words')">单词练习</button>
+        <button id="btn-articles" class="nav-btn" onclick="switchTab('articles')">文章跟读</button>
+        <button id="btn-chat" class="nav-btn" onclick="switchTab('chat')">互动聊天</button>
+    </div>
+
+    <!-- ================= 页面 1：单词练习 ================= -->
+    <div id="page-words" class="page-section active">
+        <!-- 单词跟读 -->
+        <div class="card" style="border: 2px solid #3498db;">
+            <h2>🗣️ 单词发音与跟读
+                <span id="wordCounter" class="word-counter">1/1</span>
+            </h2>
+            <p>
+                <strong style="font-size: 36px; color: #27ae60; display: block; text-align: center; margin: 15px 0;" id="targetWord" onclick="toggleBlur()">加载中...</strong>
+                <span class="hint-text">👆 点击播放发音时会自动模糊遮挡单词</span>
+            </p>
+            <div class="row-buttons">
+                <button class="action-btn" onclick="readTargetWord()" style="background-color: #27ae60;">🔊 听标准音</button>
+                <button class="action-btn" onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button>
+            </div>
+            <p id="wordResult" class="result-text"></p>
+            <button class="action-btn" onclick="nextWord()" style="background-color: #34495e;">⏭️ 切换下一个单词</button>
         </div>
-        <p id="wordResult"></p>
-        
-        <button onclick="nextWord()" style="background-color: #34495e;">⏭️ 切换下一个单词</button>
+
+        <!-- 单词听写 -->
+        <div class="card">
+            <h2>✍️ 盲听拼写</h2>
+            <p style="font-size: 14px; color: #7f8c8d; margin-top: 0;">不看上方单词，听发音并拼写出来：</p>
+            <button class="action-btn" onclick="readTargetWord()" style="background-color: #8e44ad; margin-top: 0;">🔊 播放当前发音</button>
+            <input type="text" id="dictationInput" placeholder="输入单词拼写 (按回车提交)..." autocomplete="off" autocorrect="off" autocapitalize="none" onkeypress="if(event.key === 'Enter') checkDictation()">
+            <button class="action-btn" onclick="checkDictation()" style="background-color: #2980b9;">✅ 提交检查</button>
+            <p id="dictationResult" class="result-text"></p>
+        </div>
     </div>
 
-    <!-- 功能区：听写练习 -->
-    <div class="card">
-        <h2>✍️ 盲听拼写</h2>
-        <p style="font-size: 14px; color: #7f8c8d;">不看上面的单词，听发音并拼写出来：</p>
-        
-        <button onclick="readTargetWord()" style="background-color: #8e44ad; margin-top: 0;">🔊 播放当前单词发音</button>
-        
-        <!-- 输入框：回车直接提交 -->
-        <input type="text" id="dictationInput" placeholder="请输入听到的单词拼写..." autocomplete="off" autocorrect="off" autocapitalize="none" onkeypress="if(event.key === 'Enter') checkDictation()">
-        
-        <button onclick="checkDictation()" style="background-color: #2980b9;">✅ 提交检查</button>
-        <p id="dictationResult"></p>
+    <!-- ================= 页面 2：文章跟读 ================= -->
+    <div id="page-articles" class="page-section">
+        <div class="card">
+            <h2>📖 文章跟读训练</h2>
+            <p style="font-size: 14px; color: #7f8c8d; margin-top: 0;">输入你想练习的英文段落：</p>
+            <textarea id="articleText" rows="6">Hello! I am your English teacher. Today is a beautiful day. Let's practice English together and improve our skills.</textarea>
+            
+            <div class="row-buttons">
+                <button class="action-btn" onclick="speakText()" style="background-color: #8e44ad;">🔊 老师范读</button>
+                <button class="action-btn" onclick="startListeningForArticle()" style="background-color: #e67e22;">🎤 我来试读</button>
+            </div>
+            <p id="articleResult" class="result-text"></p>
+        </div>
     </div>
 
-    <!-- 功能区：文章朗读 -->
-    <div class="card">
-        <h2>📖 自由朗读</h2>
-        <textarea id="articleText" rows="3">Hello! I am your English teacher. Let's practice.</textarea>
-        <button onclick="speakText()">🔊 朗读输入框内容</button>
+    <!-- ================= 页面 3：互动聊天 ================= -->
+    <div id="page-chat" class="page-section">
+        <div class="card">
+            <h2>🤖 AI 英语角 (开发中)</h2>
+            <p style="font-size: 14px; color: #7f8c8d; margin-top: 0;">这里将接入大模型 API，你可以用语音直接和 AI 用全英文对话，AI 也会用语音回复你。</p>
+            
+            <div style="background: #f1f2f6; padding: 15px; border-radius: 10px; margin-top: 15px; font-size: 14px; color: #555;">
+                <p><strong>👨‍🎓 你说:</strong> "Hi, can you help me practice ordering food in a restaurant?"</p>
+                <p><strong>🤖 AI 回复:</strong> "Of course! Welcome to my restaurant. Here is the menu. Are you ready to order?"</p>
+            </div>
+
+            <button class="action-btn" style="background-color: #95a5a6; margin-top: 20px;">🎤 按住说话 (待接入 API)</button>
+        </div>
     </div>
 
     <script>
-        // --- 核心变量 ---
+        // ================= 导航栏切换逻辑 =================
+        function switchTab(tabName) {
+            // 1. 隐藏所有页面内容
+            document.querySelectorAll('.page-section').forEach(page => page.classList.remove('active'));
+            // 2. 取消所有按钮的高亮
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            
+            // 3. 显示点击的页面，并高亮对应按钮
+            document.getElementById('page-' + tabName).classList.add('active');
+            document.getElementById('btn-' + tabName).classList.add('active');
+        }
+
+        // ================= 单词练习逻辑 =================
         let wordList = ["Apple"]; 
         let currentIndex = 0;
 
-        // --- 1. 读取 NewWorks.txt ---
         async function loadWords() {
             try {
                 const response = await fetch('NewWorks.txt');
                 if (!response.ok) throw new Error('无法读取文件');
                 const text = await response.text();
                 
-                wordList = text.split(/,|\s{2,}|\n/)
-                               .map(w => w.trim())          
-                               .filter(w => w.length > 0);  
+                wordList = text.split(/,|\s{2,}|\n/).map(w => w.trim()).filter(w => w.length > 0);  
                 
                 if (wordList.length > 0) {
                     currentIndex = 0;
@@ -93,40 +144,32 @@
             }
         }
 
-        // --- 2. 更新界面显示的单词 ---
         function updateWordDisplay() {
             document.getElementById('targetWord').innerText = wordList[currentIndex];
             document.getElementById('wordCounter').innerText = `${currentIndex + 1} / ${wordList.length}`;
             
-            // 清空状态
             document.getElementById('wordResult').innerText = ""; 
             document.getElementById('dictationInput').value = ""; 
             document.getElementById('dictationResult').innerText = "";
-            
-            // 确保切换新单词时，单词默认是清晰的，方便先学习
             document.getElementById('targetWord').style.filter = 'none';
         }
 
-        // --- 3. 切换下一个单词 ---
         function nextWord() {
             if (wordList.length === 0) return;
             currentIndex = (currentIndex + 1) % wordList.length; 
             updateWordDisplay();
         }
 
-        // --- 4. 手动点击模糊/清晰 ---
         function toggleBlur() {
             const wordEl = document.getElementById('targetWord');
-            if (wordEl.style.filter === 'blur(8px)') {
-                wordEl.style.filter = 'none';
-            } else {
-                wordEl.style.filter = 'blur(8px)';
-            }
+            wordEl.style.filter = wordEl.style.filter === 'blur(8px)' ? 'none' : 'blur(8px)';
         }
 
-        // --- 5. 语音合成 (TTS) ---
+        // ================= 语音与听写核心功能 =================
         function speakText(textOverride) {
+            // 如果传入了文字读传入的文字，否则读文章输入框的文字
             const text = textOverride || document.getElementById('articleText').value;
+            if (!text) return;
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'en-US'; 
             utterance.rate = 0.85; 
@@ -134,22 +177,15 @@
         }
 
         function readTargetWord() {
-            // 【核心修改点 1】：每次点击播放发音时，强制将单词模糊处理
             document.getElementById('targetWord').style.filter = 'blur(8px)';
-            
             speakText(wordList[currentIndex]);
-            
-            // 自动把光标移入听写框，方便直接打字（针对手机可能不会自动弹键盘，但体验更好）
-            document.getElementById('dictationInput').focus(); 
+            // 尝试聚焦输入框
+            setTimeout(() => { document.getElementById('dictationInput').focus(); }, 100);
         }
 
-        // --- 6. 语音跟读 (STT) ---
         function startListeningForWord() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("请在 iPhone 自带的 Safari 浏览器中使用此功能。");
-                return;
-            }
+            if (!SpeechRecognition) return alert("请在 iPhone Safari 中使用。");
 
             const recognition = new SpeechRecognition();
             recognition.lang = 'en-US';
@@ -169,12 +205,9 @@
                     resultEl.innerHTML = `❌ 差一点，你读作: "${transcript}"`;
                 }
             };
-            recognition.onerror = function() {
-                document.getElementById('wordResult').innerText = "未听到声音，请重试。";
-            };
+            recognition.onerror = () => document.getElementById('wordResult').innerText = "未听到声音，请重试。";
         }
 
-        // --- 7. 听写检查功能 ---
         function checkDictation() {
             const userInput = document.getElementById('dictationInput').value.toLowerCase().trim();
             const targetWord = wordList[currentIndex].toLowerCase().trim();
@@ -189,24 +222,42 @@
             if (userInput === targetWord) {
                 resultEl.style.color = "#27ae60";
                 resultEl.innerHTML = `✅ 完全正确！拼写为: <strong>${wordList[currentIndex]}</strong>`;
-                
-                // 【核心修改点 2】：听写完全正确后，自动取消模糊，让你再看一眼清晰的单词
                 document.getElementById('targetWord').style.filter = 'none';
-                
-                // 隐藏键盘
                 document.getElementById('dictationInput').blur(); 
                 
-                // 延迟 1.5 秒后自动进入下一个单词
-                setTimeout(() => {
-                    nextWord();
-                }, 1500);
-
+                setTimeout(() => { nextWord(); }, 1500);
             } else {
                 resultEl.style.color = "#e74c3c";
                 resultEl.innerHTML = `❌ 拼写错误。你输入的是 "${userInput}"，再听一遍试试！`;
             }
         }
 
+        // ================= 文章跟读逻辑 (简单版) =================
+        function startListeningForArticle() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return alert("请在 iPhone Safari 中使用。");
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            // 允许连续识别长句子
+            recognition.interimResults = false; 
+            
+            const resultEl = document.getElementById('articleResult');
+            resultEl.style.color = "#333";
+            resultEl.innerText = "🎤 正在聆听... 读完后请停顿。";
+            
+            recognition.start();
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                resultEl.style.color = "#2980b9";
+                resultEl.innerHTML = `<strong>你读的是：</strong><br>"${transcript}"`;
+            };
+            
+            recognition.onerror = () => resultEl.innerText = "未听到声音，请重试。";
+        }
+
+        // 页面加载完成时初始化
         window.onload = loadWords;
     </script>
 </body>
