@@ -135,7 +135,7 @@
         async function loadAllData() {
             // 1. 加载并智能解析单词库
             try {
-                const wRes = await fetch('NewWorks.txt');
+                const wRes = await fetch('NewWords.txt');
                 if (wRes.ok) {
                     const wText = await wRes.text();
                     const rawWords = wText.split(/,|\s{2,}|\n/).map(w => w.trim()).filter(w => w.length > 0);  
