@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 适配 iPhone 屏幕 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 英语私教</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f9; color: #333; }
+        h1 { text-align: center; color: #2c3e50; }
+        .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        button { background-color: #007aff; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 16px; width: 100%; margin-top: 10px; cursor: pointer; }
+        button:active { background-color: #005bb5; }
+        textarea, input { width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
+        #result { margin-top: 10px; color: #d35400; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>🚀 AI 英语私教</h1>
+
+    <!-- 功能区 1：文章朗读 -->
+    <div class="card">
+        <h2>📖 文章朗读</h2>
+        <p>输入英文，iPhone 会用纯正口音读出来：</p>
+        <textarea id="articleText" rows="4">Hello! I am your English teacher. Let's practice English together.</textarea>
+        <button onclick="speakText()">🔊 朗读文章</button>
+    </div>
+
+    <!-- 功能区 2：单词跟读 -->
+    <div class="card">
+        <h2>🗣️ 单词跟读练习</h2>
+        <p>目标单词：<strong style="font-size: 24px; color: #27ae60;" id="targetWord">Apple</strong></p>
+        <button onclick="readTargetWord()" style="background-color: #27ae60;">🔊 听标准发音</button>
+        <button onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button>
+        <p id="wordResult"></p>
+    </div>
+
+    <!-- 功能区 3：AI 英语对话 (模拟演示) -->
+    <div class="card">
+        <h2>🤖 英语自由对话</h2>
+        <p>输入你的 Gemini API Key (仅保存在本地浏览器中):</p>
+        <input type="password" id="apiKey" placeholder="输入 API Key...">
+        <button onclick="startConversation()" style="background-color: #8e44ad;">🎤 点击说话</button>
+        <p id="chatLog">聊天记录将显示在这里...</p>
+    </div>
+
+    <script>
+        // --- 1. 文章朗读功能 ---
+        function speakText(textOverride) {
+            const text = textOverride || document.getElementById('articleText').value;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US'; // 设置为美式英语
+            utterance.rate = 0.9;     // 语速稍微放慢一点，适合学习
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // --- 2. 单词跟读功能 ---
+        function readTargetWord() {
+            const word = document.getElementById('targetWord').innerText;
+            speakText(word);
+        }
+
+        function startListeningForWord() {
+            // 兼容 Safari 的语音识别 API
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("你的浏览器不支持语音识别，请使用 iPhone 自带的 Safari 浏览器。");
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            document.getElementById('wordResult').innerText = "正在聆听... 请说出单词";
+            
+            recognition.start();
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript.toLowerCase().replace(/[.,]/g, '');
+                const target = document.getElementById('targetWord').innerText.toLowerCase();
+                
+                if (transcript === target) {
+                    document.getElementById('wordResult').innerHTML = `✅ 完美！你读作: "${transcript}"`;
+                } else {
+                    document.getElementById('wordResult').innerHTML = `❌ 差一点。你读作: "${transcript}"，再试一次！`;
+                }
+            };
+
+            recognition.onerror = function(event) {
+                document.getElementById('wordResult').innerText = "识别出错，请允许麦克风权限。";
+            };
+        }
+
+        // --- 3. 英语对话功能 (框架) ---
+        function startConversation() {
+            const apiKey = document.getElementById('apiKey').value;
+            if (!apiKey) {
+                alert("请先获取并输入 Gemini API Key！");
+                return;
+            }
+            // 这里可以结合语音识别(获取你的话) -> 发送给Gemini(获取AI回复) -> 语音合成(读出AI的话)
+            // 稍后我们可以完善这部分网络请求的代码！
+            alert("语音对话框架已就绪！下一步我们可以接入真实的 AI 请求。");
+        }
+    </script>
+</body>
+</html>
