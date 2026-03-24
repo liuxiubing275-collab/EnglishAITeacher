@@ -16,7 +16,7 @@
         #wordResult, #dictationResult { margin-top: 10px; font-weight: bold; min-height: 24px;}
         .word-counter { font-size: 14px; color: #7f8c8d; float: right; }
         
-        /* 单词模糊特效（防作弊） */
+        /* 单词模糊特效 */
         #targetWord { transition: filter 0.3s ease; cursor: pointer; }
         .hint-text { font-size: 12px; color: #95a5a6; text-align: center; display: block; margin-top: -10px; }
     </style>
@@ -32,7 +32,7 @@
         </h2>
         <p>
             <strong style="font-size: 32px; color: #27ae60; display: block; text-align: center; margin: 15px 0;" id="targetWord" onclick="toggleBlur()">加载中...</strong>
-            <span class="hint-text">👆 点击单词可将其模糊遮挡（听写时防作弊）</span>
+            <span class="hint-text">👆 点击播放发音时会自动模糊遮挡单词</span>
         </p>
         
         <div class="row-buttons">
@@ -44,14 +44,14 @@
         <button onclick="nextWord()" style="background-color: #34495e;">⏭️ 切换下一个单词</button>
     </div>
 
-    <!-- 新增功能区：听写练习 -->
+    <!-- 功能区：听写练习 -->
     <div class="card">
         <h2>✍️ 盲听拼写</h2>
         <p style="font-size: 14px; color: #7f8c8d;">不看上面的单词，听发音并拼写出来：</p>
         
         <button onclick="readTargetWord()" style="background-color: #8e44ad; margin-top: 0;">🔊 播放当前单词发音</button>
         
-        <!-- 输入框：增加了 onkeypress 事件，按回车即可提交 -->
+        <!-- 输入框：回车直接提交 -->
         <input type="text" id="dictationInput" placeholder="请输入听到的单词拼写..." autocomplete="off" autocorrect="off" autocapitalize="none" onkeypress="if(event.key === 'Enter') checkDictation()">
         
         <button onclick="checkDictation()" style="background-color: #2980b9;">✅ 提交检查</button>
@@ -98,12 +98,12 @@
             document.getElementById('targetWord').innerText = wordList[currentIndex];
             document.getElementById('wordCounter').innerText = `${currentIndex + 1} / ${wordList.length}`;
             
-            // 切换单词时，清空之前所有的状态
+            // 清空状态
             document.getElementById('wordResult').innerText = ""; 
             document.getElementById('dictationInput').value = ""; 
             document.getElementById('dictationResult').innerText = "";
             
-            // 确保切换单词时，单词不被模糊
+            // 确保切换新单词时，单词默认是清晰的，方便先学习
             document.getElementById('targetWord').style.filter = 'none';
         }
 
@@ -114,13 +114,13 @@
             updateWordDisplay();
         }
 
-        // --- 4. 点击模糊单词 (防作弊) ---
+        // --- 4. 手动点击模糊/清晰 ---
         function toggleBlur() {
             const wordEl = document.getElementById('targetWord');
             if (wordEl.style.filter === 'blur(8px)') {
-                wordEl.style.filter = 'none'; // 恢复清晰
+                wordEl.style.filter = 'none';
             } else {
-                wordEl.style.filter = 'blur(8px)'; // 变模糊
+                wordEl.style.filter = 'blur(8px)';
             }
         }
 
@@ -134,7 +134,13 @@
         }
 
         function readTargetWord() {
+            // 【核心修改点 1】：每次点击播放发音时，强制将单词模糊处理
+            document.getElementById('targetWord').style.filter = 'blur(8px)';
+            
             speakText(wordList[currentIndex]);
+            
+            // 自动把光标移入听写框，方便直接打字（针对手机可能不会自动弹键盘，但体验更好）
+            document.getElementById('dictationInput').focus(); 
         }
 
         // --- 6. 语音跟读 (STT) ---
@@ -170,7 +176,6 @@
 
         // --- 7. 听写检查功能 ---
         function checkDictation() {
-            // 获取用户输入，并转为小写去空格
             const userInput = document.getElementById('dictationInput').value.toLowerCase().trim();
             const targetWord = wordList[currentIndex].toLowerCase().trim();
             const resultEl = document.getElementById('dictationResult');
@@ -185,7 +190,10 @@
                 resultEl.style.color = "#27ae60";
                 resultEl.innerHTML = `✅ 完全正确！拼写为: <strong>${wordList[currentIndex]}</strong>`;
                 
-                // 隐藏键盘 (针对手机端优化)
+                // 【核心修改点 2】：听写完全正确后，自动取消模糊，让你再看一眼清晰的单词
+                document.getElementById('targetWord').style.filter = 'none';
+                
+                // 隐藏键盘
                 document.getElementById('dictationInput').blur(); 
                 
                 // 延迟 1.5 秒后自动进入下一个单词
@@ -199,7 +207,6 @@
             }
         }
 
-        // 页面加载时自动读取文件
         window.onload = loadWords;
     </script>
 </body>
