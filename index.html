@@ -8,7 +8,6 @@
         body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background-color: #f2f2f7; color: #333; }
         h1 { text-align: center; color: #1c1c1e; font-size: 24px; margin-bottom: 20px; }
         
-        /* 导航栏 */
         .nav-bar { display: flex; background-color: #e3e3e8; border-radius: 10px; padding: 4px; margin-bottom: 20px; }
         .nav-btn { flex: 1; background: transparent; color: #8e8e93; border: none; padding: 10px 0; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; transition: 0.3s ease; }
         .nav-btn.active { background: white; color: #007aff; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -17,7 +16,6 @@
         .page-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* 卡片与通用样式 */
         .card { background: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         h2 { font-size: 18px; margin-top: 0; color: #2c3e50; display: flex; justify-content: space-between; align-items: center; }
         
@@ -26,19 +24,16 @@
         .row-buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; } 
         .row-buttons button { margin-top: 10px; flex: 1; min-width: 40%; }
         
-        input[type="text"], select { width: 100%; padding: 12px; margin-top: 10px; border-radius: 10px; border: 1px solid #d1d1d6; box-sizing: border-box; font-size: 15px; background-color: #fafafa; }
+        input[type="text"], textarea, select { width: 100%; padding: 12px; margin-top: 10px; border-radius: 10px; border: 1px solid #d1d1d6; box-sizing: border-box; font-size: 15px; background-color: #fafafa; }
         
-        /* 单词与例句样式 */
         .result-text { margin-top: 10px; font-weight: bold; min-height: 24px; font-size: 15px; }
         #targetWord { transition: filter 0.3s ease; cursor: pointer; }
         #chineseMeaning { text-align: center; font-size: 20px; color: #8e44ad; font-weight: bold; display: none; margin: 10px 0 0 0; animation: fadeIn 0.3s ease;}
         .example-box { background-color: #fdfae6; border-left: 4px solid #f1c40f; padding: 12px; margin-top: 15px; border-radius: 8px; font-size: 16px; color: #34495e; display: none; animation: fadeIn 0.3s ease; font-style: italic;}
 
-        /* 文章专属样式 */
         .article-display { background-color: #f8f9fa; padding: 15px; border-radius: 10px; font-size: 18px; line-height: 1.6; color: #2c3e50; border: 1px solid #e9ecef; margin-top: 10px; }
         .diff-result { margin-top: 15px; padding: 15px; border-radius: 10px; background-color: #fff; border: 2px dashed #bdc3c7; font-size: 16px; line-height: 1.6; display: none; }
 
-        /* ========= 新增：小组测验专属样式 ========= */
         .test-progress { font-size: 16px; color: #2980b9; text-align: center; margin-bottom: 10px; font-weight: bold; background: #eaf2f8; padding: 10px; border-radius: 8px;}
         .result-list { list-style: none; padding: 0; margin-top: 15px; text-align: left;}
         .result-list li { margin-bottom: 10px; font-size: 16px; padding: 12px; border-radius: 8px; background: #f8f9fa; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
@@ -59,22 +54,20 @@
 
     <!-- ================= 页面 1：单词练习 ================= -->
     <div id="page-words" class="page-section active">
+        <!-- 单词发音与跟读 -->
         <div class="card" style="border: 2px solid #3498db;">
             <h2>🗣️ 单词发音与跟读 
                 <span id="wordCounter" style="font-size: 14px; color: #8e8e93; font-weight: normal;">1/1</span>
             </h2>
-            
             <select id="groupSelect" onchange="changeGroup()" style="font-weight: bold; color: #2980b9; border: 2px solid #3498db;">
                 <option value="all">📚 整体练习 (加载中...)</option>
             </select>
-
             <p>
                 <strong style="font-size: 36px; color: #27ae60; display: block; text-align: center; margin: 15px 0 5px 0;" id="targetWord" onclick="toggleBlur()">加载中...</strong>
                 <span style="font-size: 12px; color: #95a5a6; text-align: center; display: block;">👆 点击发音时自动模糊单词防作弊</span>
             </p>
             <p id="chineseMeaning">中文释义</p>
             <div id="exampleSentence" class="example-box"></div>
-            
             <div class="row-buttons">
                 <button class="action-btn" onclick="readTargetWord()" style="background-color: #27ae60;">🔊 听标准音</button>
                 <button class="action-btn" onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button>
@@ -90,56 +83,42 @@
             </div>
         </div>
 
-        <!-- ================= 核心升级：盲听拼写卡片 ================= -->
+        <!-- 盲听拼写 -->
         <div class="card">
             <h2>✍️ 盲听拼写</h2>
-            
-            <!-- 模式 1：单次练习 (默认显示) -->
             <div id="dictationSingleMode">
-                <!-- 核心入口按钮 -->
                 <button class="action-btn" onclick="startGroupTest()" style="background-color: #34495e; margin-top: 0; margin-bottom: 20px; font-size: 18px;">📝 开始【本组连续测验】</button>
-                
                 <p style="font-size: 13px; color: #7f8c8d; margin-top: 0; border-top: 1px solid #eee; padding-top: 10px;">单词自由练习：</p>
                 <button class="action-btn" onclick="readTargetWord()" style="background-color: #8e44ad; margin-top: 0;">🔊 播放当前单词</button>
                 <input type="text" id="dictationInput" placeholder="输入拼写 (按回车提交检查)..." autocomplete="off" autocorrect="off" autocapitalize="none" onkeypress="if(event.key === 'Enter') checkDictation()">
                 <button class="action-btn" onclick="checkDictation()" style="background-color: #2980b9;">✅ 提交检查</button>
                 <p id="dictationResult" class="result-text"></p>
             </div>
-
-            <!-- 模式 2：小组测验进行中 (默认隐藏) -->
             <div id="dictationGroupMode" style="display: none;">
                 <div class="test-progress" id="groupTestProgress">正在测验: 1 / 10</div>
                 <button class="action-btn" onclick="playTestWord()" style="background-color: #8e44ad; margin-top: 0;">🔊 重听当前单词</button>
-                
-                <!-- 测验输入框：回车直接调用下一个 -->
                 <input type="text" id="groupTestInput" placeholder="输入拼写后按【回车】自动进入下一个..." autocomplete="off" autocorrect="off" autocapitalize="none" onkeypress="if(event.key === 'Enter') submitTestWord()" style="border: 2px solid #3498db; font-size: 18px;">
-                
                 <button class="action-btn" onclick="submitTestWord()" style="background-color: #27ae60;">⏭️ 提交并听下一个</button>
                 <button class="action-btn" onclick="quitGroupTest()" style="background-color: #e74c3c; margin-top: 20px;">🚪 提前结束测验</button>
             </div>
-
-            <!-- 模式 3：小组测验结果 (默认隐藏) -->
             <div id="dictationResultMode" style="display: none;">
                 <div class="score-display" id="groupTestScore">正确率: 80%</div>
-                <ul class="result-list" id="groupTestResultList">
-                    <!-- 结果列表渲染在这里 -->
-                </ul>
+                <ul class="result-list" id="groupTestResultList"></ul>
                 <button class="action-btn" onclick="quitGroupTest()" style="background-color: #3498db; margin-top: 20px;">🔙 返回自由练习</button>
             </div>
-
         </div>
     </div>
 
     <!-- ================= 页面 2：文章跟读 ================= -->
     <div id="page-articles" class="page-section">
+        
+        <!-- 卡片1：智能文章跟读 -->
         <div class="card">
             <h2>📖 智能文章跟读 
                 <select id="articleSelect" onchange="changeArticle()" style="width: auto; padding: 5px; margin: 0; font-size: 14px;">
                     <option value="0">加载中...</option>
                 </select>
             </h2>
-            <p style="font-size: 14px; color: #7f8c8d; margin-top: 5px;">听原音并跟读，AI 会自动为你纠错：</p>
-            <div id="articleDisplay" class="article-display">文章加载中...</div>
             <div class="row-buttons">
                 <select id="speedSelect" style="width: 100%; padding: 12px; margin-top: 10px; border-radius: 12px; font-size: 15px; font-weight: bold; color: #2c3e50; border: 2px solid #8e44ad;">
                     <option value="0.5">🐢 0.5x 慢速朗读</option>
@@ -149,6 +128,8 @@
                     <option value="1.5">🚀 1.5x 极速挑战</option>
                 </select>
             </div>
+            <p style="font-size: 14px; color: #7f8c8d; margin-top: 15px;">听原音并跟读，AI 会自动为你纠错：</p>
+            <div id="articleDisplay" class="article-display">文章加载中...</div>
             <div class="row-buttons">
                 <button class="action-btn" onclick="speakArticle()" style="background-color: #8e44ad;">🔊 老师范读</button>
                 <button class="action-btn" onclick="startListeningForArticle()" style="background-color: #e67e22;">🎤 开始跟读</button>
@@ -161,6 +142,35 @@
                 <button class="action-btn" onclick="nextArticle()" style="background-color: #2c3e50;">⏭️ 下一段文章</button>
             </div>
         </div>
+
+        <!-- 卡片2：核心升级：文章逐句听写 -->
+        <div class="card" style="border: 2px solid #8e44ad;">
+            <h2>✍️ 黄金十秒·逐句听写</h2>
+            
+            <div id="articleDictationSetup">
+                <p style="font-size: 14px; color: #7f8c8d; margin-top: 0;">每一句会自动播报两遍 (间隔 10 秒)。听写是提升听力的终极秘诀！</p>
+                <button class="action-btn" onclick="startArticleDictation()" style="background-color: #8e44ad; font-size: 18px;">📝 开始精听本文</button>
+            </div>
+
+            <div id="articleDictationRunning" style="display: none;">
+                <div class="test-progress" id="articleDictProgress" style="background-color: #f4ecf8; color: #8e44ad;">正在听写: 第 1 句 / 共 5 句</div>
+                
+                <p style="font-size: 13px; color: #e67e22; text-align: center; margin-top: 0; font-weight: bold;" id="timerHint">🔊 第一遍播放中...</p>
+                
+                <button class="action-btn" onclick="playCurrentSentence()" style="background-color: #f39c12; margin-top: 0;">🔊 立即重听本句</button>
+                
+                <textarea id="articleDictInput" rows="3" placeholder="听写开始，在此输入... (按回车键直接提交)" autocomplete="off" autocorrect="off" autocapitalize="none" style="border: 2px solid #8e44ad; font-size: 18px;" onkeypress="if(event.key === 'Enter') { event.preventDefault(); checkArticleDictation(); }"></textarea>
+                
+                <button class="action-btn" onclick="checkArticleDictation()" style="background-color: #27ae60;">✅ 提交并对答案</button>
+                
+                <div id="articleDictResult" class="diff-result" style="margin-top: 15px;"></div>
+                
+                <button id="btnNextSentence" class="action-btn" onclick="nextDictationSentence()" style="background-color: #34495e; display: none; margin-top: 15px;">⏭️ 进行下一句</button>
+                
+                <button class="action-btn" onclick="quitArticleDictation()" style="background-color: #e74c3c; margin-top: 15px;">🚪 结束精听</button>
+            </div>
+        </div>
+
     </div>
 
     <!-- ================= 页面 3：互动聊天 ================= -->
@@ -185,6 +195,9 @@
         let currentWordIndex = 0; 
         let articleList =["Please create Texts.txt file."];
         let currentArticleIndex = 0;
+        
+        // 保存用于避免 iOS 垃圾回收的声音对象
+        let activeUtterance = null; 
 
         async function loadAllData() {
             try {
@@ -217,6 +230,7 @@
             if (articleList.length > 0) { initArticleSelect(); updateArticleDisplay(); }
         }
 
+        // ================= 单词功能区域 (全部保留) =================
         function initGroupSelect() {
             const select = document.getElementById('groupSelect');
             select.innerHTML = `<option value="all">📚 整体练习 (共 ${wordList.length} 词)</option>`;
@@ -229,25 +243,17 @@
                 select.appendChild(option);
             }
         }
-
         function getGroupBounds() {
             const val = document.getElementById('groupSelect').value;
-            if (val === 'all') {
-                return { start: 0, end: wordList.length - 1, total: wordList.length };
-            } else {
-                const gIdx = parseInt(val);
-                const start = gIdx * 10;
-                return { start, end: Math.min(start + 9, wordList.length - 1), total: Math.min(start + 9, wordList.length - 1) - start + 1 };
-            }
+            if (val === 'all') return { start: 0, end: wordList.length - 1, total: wordList.length };
+            const start = parseInt(val) * 10;
+            return { start, end: Math.min(start + 9, wordList.length - 1), total: Math.min(start + 9, wordList.length - 1) - start + 1 };
         }
-
         function changeGroup() { currentWordIndex = getGroupBounds().start; updateWordDisplay(); }
-
         function updateWordDisplay() {
             const bounds = getGroupBounds();
-            const relativeIndex = currentWordIndex - bounds.start + 1;
             document.getElementById('targetWord').innerText = wordList[currentWordIndex].en;
-            document.getElementById('wordCounter').innerText = `${relativeIndex} / ${bounds.total}`;
+            document.getElementById('wordCounter').innerText = `${currentWordIndex - bounds.start + 1} / ${bounds.total}`;
             document.getElementById('chineseMeaning').style.display = 'none';
             document.getElementById('chineseMeaning').innerText = wordList[currentWordIndex].zh;
             document.getElementById('exampleSentence').style.display = 'none';
@@ -257,53 +263,37 @@
             document.getElementById('dictationResult').innerText = "";
             document.getElementById('targetWord').style.filter = 'none';
         }
-
         function toggleMeaning() { const el = document.getElementById('chineseMeaning'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
-
         function showAndPlayExample() {
-            const exEl = document.getElementById('exampleSentence');
-            exEl.style.display = 'block'; 
+            document.getElementById('exampleSentence').style.display = 'block'; 
             const fullSentence = wordList[currentWordIndex].ex;
             if (fullSentence !== "暂无例句。") {
                 const englishPart = fullSentence.replace(/[^\x00-\xff]/g, '').trim();
                 if (englishPart.length > 0) {
-                    const utterance = new SpeechSynthesisUtterance(englishPart);
-                    utterance.lang = 'en-US'; window.speechSynthesis.speak(utterance);
+                    activeUtterance = new SpeechSynthesisUtterance(englishPart);
+                    activeUtterance.lang = 'en-US'; window.speechSynthesis.speak(activeUtterance);
                 }
             }
         }
-
         function nextWord() {
             if (wordList.length === 0) return;
             const bounds = getGroupBounds();
-            currentWordIndex++;
-            if (currentWordIndex > bounds.end) currentWordIndex = bounds.start;
+            currentWordIndex++; if (currentWordIndex > bounds.end) currentWordIndex = bounds.start;
             updateWordDisplay();
         }
-
-        function restartWords() {
-            if (wordList.length === 0) return;
-            currentWordIndex = getGroupBounds().start; updateWordDisplay();
-        }
-
-        function toggleBlur() {
-            const wordEl = document.getElementById('targetWord');
-            wordEl.style.filter = wordEl.style.filter === 'blur(8px)' ? 'none' : 'blur(8px)';
-        }
-
+        function restartWords() { if (wordList.length === 0) return; currentWordIndex = getGroupBounds().start; updateWordDisplay(); }
+        function toggleBlur() { const wordEl = document.getElementById('targetWord'); wordEl.style.filter = wordEl.style.filter === 'blur(8px)' ? 'none' : 'blur(8px)'; }
         function readTargetWord() {
             document.getElementById('targetWord').style.filter = 'blur(8px)';
-            const utterance = new SpeechSynthesisUtterance(wordList[currentWordIndex].en);
-            utterance.lang = 'en-US'; window.speechSynthesis.speak(utterance);
+            activeUtterance = new SpeechSynthesisUtterance(wordList[currentWordIndex].en);
+            activeUtterance.lang = 'en-US'; window.speechSynthesis.speak(activeUtterance);
             setTimeout(() => { document.getElementById('dictationInput').focus(); }, 100);
         }
-
         function startListeningForWord() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) return alert("请在 Safari 中使用。");
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'en-US'; document.getElementById('wordResult').style.color = "#333";
-            document.getElementById('wordResult').innerText = "正在聆听...";
+            const recognition = new SpeechRecognition(); recognition.lang = 'en-US'; 
+            document.getElementById('wordResult').style.color = "#333"; document.getElementById('wordResult').innerText = "正在聆听...";
             recognition.start();
             recognition.onresult = function(event) {
                 const transcript = event.results[0][0].transcript.toLowerCase().replace(/[.,!?]/g, '').trim();
@@ -313,7 +303,6 @@
                 else { resultEl.style.color = "#e74c3c"; resultEl.innerHTML = `❌ 差一点，读作: "${transcript}"`; }
             };
         }
-
         function checkDictation() {
             const userInput = document.getElementById('dictationInput').value.toLowerCase().trim();
             const targetWord = wordList[currentWordIndex].en.toLowerCase().trim();
@@ -323,164 +312,83 @@
                 resultEl.style.color = "#27ae60"; resultEl.innerHTML = `✅ 完全正确！`;
                 document.getElementById('targetWord').style.filter = 'none'; document.getElementById('dictationInput').blur(); 
                 setTimeout(() => { nextWord(); }, 1500);
-            } else {
-                resultEl.style.color = "#e74c3c"; resultEl.innerHTML = `❌ 拼写错误。`;
-            }
+            } else { resultEl.style.color = "#e74c3c"; resultEl.innerHTML = `❌ 拼写错误。`; }
         }
 
-        // ================= 核心升级：小组连续测验逻辑 =================
-        let groupTestBounds = null;
-        let groupTestAnswers =[];
-        let groupTestCurrentIndex = 0; // 当前在测本组的第几个词 (0 到 9)
-
+        let groupTestBounds = null; let groupTestAnswers =[]; let groupTestCurrentIndex = 0;
         function startGroupTest() {
-            if (wordList.length === 0) return alert("词库为空！");
-            
-            groupTestBounds = getGroupBounds();
-            groupTestAnswers =[];
-            groupTestCurrentIndex = 0;
-
-            // 界面切换：隐藏单次练习，显示测验界面
-            document.getElementById('dictationSingleMode').style.display = 'none';
-            document.getElementById('dictationResultMode').style.display = 'none';
-            document.getElementById('dictationGroupMode').style.display = 'block';
-            
-            // 清空测验输入框
+            if (wordList.length === 0) return;
+            groupTestBounds = getGroupBounds(); groupTestAnswers =[]; groupTestCurrentIndex = 0;
+            document.getElementById('dictationSingleMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'none'; document.getElementById('dictationGroupMode').style.display = 'block';
             document.getElementById('groupTestInput').value = '';
-
-            updateTestProgress();
-            
-            // 延迟 600ms 等界面动画结束，开始读第一个词
+            document.getElementById('groupTestProgress').innerText = `📝 听写测验: 第 ${groupTestCurrentIndex + 1} 词 / 共 ${groupTestBounds.total} 词`;
             setTimeout(() => { playTestWord(); }, 600);
         }
-
-        function updateTestProgress() {
-            document.getElementById('groupTestProgress').innerText = `📝 听写测验: 第 ${groupTestCurrentIndex + 1} 词 / 共 ${groupTestBounds.total} 词`;
-        }
-
         function playTestWord() {
-            // 计算当前要测验的单词在词库中的绝对位置
-            let absIndex = groupTestBounds.start + groupTestCurrentIndex;
-            const utterance = new SpeechSynthesisUtterance(wordList[absIndex].en);
-            utterance.lang = 'en-US';
-            window.speechSynthesis.speak(utterance);
-            
-            // 每次读完词，自动把手机光标放进输入框里
+            activeUtterance = new SpeechSynthesisUtterance(wordList[groupTestBounds.start + groupTestCurrentIndex].en);
+            activeUtterance.lang = 'en-US'; window.speechSynthesis.speak(activeUtterance);
             setTimeout(() => { document.getElementById('groupTestInput').focus(); }, 100);
         }
-
         function submitTestWord() {
-            const inputEl = document.getElementById('groupTestInput');
-            const userInput = inputEl.value.trim();
-            
-            // 将用户的拼写存入数组 (如果没写直接按回车，存的是空字符串)
-            groupTestAnswers.push(userInput);
-            
-            // 瞬间清空输入框
-            inputEl.value = '';
-            
+            const inputEl = document.getElementById('groupTestInput'); groupTestAnswers.push(inputEl.value.trim()); inputEl.value = '';
             groupTestCurrentIndex++;
-            
             if (groupTestCurrentIndex < groupTestBounds.total) {
-                // 还没测完，更新进度
-                updateTestProgress();
-                // 给大脑 400ms 的缓冲时间，然后自动播放下一个单词
+                document.getElementById('groupTestProgress').innerText = `📝 听写测验: 第 ${groupTestCurrentIndex + 1} 词 / 共 ${groupTestBounds.total} 词`;
                 setTimeout(() => { playTestWord(); }, 400);
-            } else {
-                // 本组测验全部完成
-                showGroupTestResult();
-            }
+            } else { showGroupTestResult(); }
         }
-
         function showGroupTestResult() {
-            // 隐藏测验界面，显示成绩单界面
-            document.getElementById('dictationGroupMode').style.display = 'none';
-            document.getElementById('dictationResultMode').style.display = 'block';
-            
-            let correctCount = 0;
-            let htmlList = '';
-            
-            // 循环遍历本组的所有词，生成成绩对比单
+            document.getElementById('dictationGroupMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'block';
+            let correctCount = 0; let htmlList = '';
             for (let i = 0; i < groupTestBounds.total; i++) {
-                let absIndex = groupTestBounds.start + i;
-                let targetWord = wordList[absIndex].en;
-                let chineseMean = wordList[absIndex].zh;
-                let userAnswer = groupTestAnswers[i] || "";
-                
-                // 忽略大小写进行对比
+                let absIndex = groupTestBounds.start + i; let targetWord = wordList[absIndex].en; let userAnswer = groupTestAnswers[i] || "";
                 let isCorrect = (targetWord.toLowerCase().trim() === userAnswer.toLowerCase());
-                
                 if (isCorrect) {
-                    correctCount++;
-                    htmlList += `
-                        <li class="correct-item">
-                            <strong>${targetWord}</strong> 
-                            <span style="float:right; color:#7f8c8d; font-size: 14px;">✅ 正确</span>
-                            <div style="font-size:13px; color:#7f8c8d; margin-top:4px;">${chineseMean}</div>
-                        </li>`;
+                    correctCount++; htmlList += `<li class="correct-item"><strong>${targetWord}</strong> <span style="float:right; color:#7f8c8d; font-size: 14px;">✅ 正确</span><div style="font-size:13px; color:#7f8c8d; margin-top:4px;">${wordList[absIndex].zh}</div></li>`;
                 } else {
-                    htmlList += `
-                        <li class="incorrect-item">
-                            <span style="font-size: 14px;">你写了: <s>${userAnswer === "" ? "(没写留空)" : userAnswer}</s></span><br>
-                            正确答案: <strong>${targetWord}</strong>
-                            <div style="font-size:13px; color:#7f8c8d; margin-top:4px;">${chineseMean}</div>
-                        </li>`;
+                    htmlList += `<li class="incorrect-item"><span style="font-size: 14px;">你写了: <s>${userAnswer === "" ? "(留空)" : userAnswer}</s></span><br>正确答案: <strong>${targetWord}</strong><div style="font-size:13px; color:#7f8c8d; margin-top:4px;">${wordList[absIndex].zh}</div></li>`;
                 }
             }
-            
-            // 计算分数
             let accuracy = Math.round((correctCount / groupTestBounds.total) * 100);
-            let scoreColor = accuracy >= 80 ? '#27ae60' : (accuracy >= 60 ? '#f39c12' : '#e74c3c'); // 大于80分绿，及格黄，不及格红
-            
-            document.getElementById('groupTestScore').innerHTML = `
-                <span style="color: ${scoreColor};">🎯 正确率: ${accuracy}%</span><br>
-                <span style="font-size: 16px; color: #7f8c8d;">(写对 ${correctCount} 个 / 共 ${groupTestBounds.total} 个)</span>
-            `;
-            
-            document.getElementById('groupTestResultList').innerHTML = htmlList;
-            
-            // 强制收起手机软键盘
-            document.getElementById('groupTestInput').blur();
+            document.getElementById('groupTestScore').innerHTML = `<span style="color: ${accuracy >= 80 ? '#27ae60' : (accuracy >= 60 ? '#f39c12' : '#e74c3c')};">🎯 正确率: ${accuracy}%</span><br><span style="font-size: 16px; color: #7f8c8d;">(写对 ${correctCount} 个 / 共 ${groupTestBounds.total} 个)</span>`;
+            document.getElementById('groupTestResultList').innerHTML = htmlList; document.getElementById('groupTestInput').blur();
         }
+        function quitGroupTest() { document.getElementById('dictationGroupMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'none'; document.getElementById('dictationSingleMode').style.display = 'block'; }
 
-        function quitGroupTest() {
-            // 退出测验模式，回到初始界面
-            document.getElementById('dictationGroupMode').style.display = 'none';
-            document.getElementById('dictationResultMode').style.display = 'none';
-            document.getElementById('dictationSingleMode').style.display = 'block';
-            document.getElementById('groupTestInput').value = '';
-        }
-
-        // ================= 文章跟读逻辑 (保持不变) =================
+        // ================= 文章普通跟读 =================
         function initArticleSelect() {
             const select = document.getElementById('articleSelect'); select.innerHTML = ''; 
             articleList.forEach((_, index) => {
                 let option = document.createElement('option'); option.value = index; option.text = `第 ${index + 1} 段`; select.appendChild(option);
             });
         }
-        function changeArticle() { currentArticleIndex = parseInt(document.getElementById('articleSelect').value); updateArticleDisplay(); }
+        function changeArticle() { 
+            currentArticleIndex = parseInt(document.getElementById('articleSelect').value); 
+            updateArticleDisplay(); 
+            quitArticleDictation(); // 切换文章时，安全退出听写模式
+        }
         function nextArticle() {
             if (articleList.length === 0) return;
             currentArticleIndex = (currentArticleIndex + 1) % articleList.length;
-            document.getElementById('articleSelect').value = currentArticleIndex; updateArticleDisplay();
+            document.getElementById('articleSelect').value = currentArticleIndex; 
+            updateArticleDisplay();
+            quitArticleDictation();
         }
         function updateArticleDisplay() {
             document.getElementById('articleDisplay').innerText = articleList[currentArticleIndex];
             document.getElementById('diffResult').style.display = 'none'; 
         }
         function speakArticle() {
-            const utterance = new SpeechSynthesisUtterance(articleList[currentArticleIndex]);
-            utterance.lang = 'en-US'; utterance.rate = parseFloat(document.getElementById('speedSelect').value); 
-            window.speechSynthesis.speak(utterance);
+            activeUtterance = new SpeechSynthesisUtterance(articleList[currentArticleIndex]);
+            activeUtterance.lang = 'en-US'; activeUtterance.rate = parseFloat(document.getElementById('speedSelect').value); 
+            window.speechSynthesis.speak(activeUtterance);
         }
         function startListeningForArticle() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) return;
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'en-US'; recognition.interimResults = false; 
+            const recognition = new SpeechRecognition(); recognition.lang = 'en-US'; recognition.interimResults = false; 
             const diffBox = document.getElementById('diffResult'), diffContent = document.getElementById('diffContent');
-            diffBox.style.display = 'block'; diffBox.style.borderColor = '#e67e22';
-            diffContent.innerHTML = "🎤 <strong>正在聆听... 读完请停顿</strong>";
+            diffBox.style.display = 'block'; diffBox.style.borderColor = '#e67e22'; diffContent.innerHTML = "🎤 <strong>正在聆听... 读完请停顿</strong>";
             recognition.start();
             recognition.onresult = function(event) {
                 const diffHTML = compareSentences(articleList[currentArticleIndex], event.results[0][0].transcript);
@@ -494,6 +402,7 @@
             let originalRawWords = original.split(/\s+/); 
             let resultHTML =[], spokenIdx = 0; 
             for (let i = 0; i < origWords.length; i++) {
+                if(origWords[i] === "") continue;
                 let found = false;
                 for(let j = spokenIdx; j < Math.min(spokenIdx + 3, spokenWords.length); j++) {
                     if (origWords[i] === spokenWords[j]) { found = true; spokenIdx = j + 1; break; }
@@ -502,6 +411,162 @@
                 else resultHTML.push(`<span style="color: #e74c3c; text-decoration: line-through;">${originalRawWords[i]}</span>`);
             }
             return resultHTML.join(' ');
+        }
+
+        // ================= 核心升级：文章逐句听写 =================
+        let articleSentences =[];
+        let currentSentenceIdx = 0;
+        let sentenceReplayTimer = null;
+
+        function startArticleDictation() {
+            if (articleList.length === 0) return alert("文章库为空！");
+            
+            const articleText = articleList[currentArticleIndex];
+            
+            // 使用正则智能切分句子（按 . ! ? 切分，并保留标点符号）
+            articleSentences = articleText.match(/[^.!?]+[.!?]+/g) || [articleText];
+            // 去除多余空格
+            articleSentences = articleSentences.map(s => s.trim()).filter(s => s.length > 0);
+            
+            currentSentenceIdx = 0;
+
+            document.getElementById('articleDictationSetup').style.display = 'none';
+            document.getElementById('articleDictationRunning').style.display = 'block';
+            document.getElementById('articleDictResult').style.display = 'none';
+            document.getElementById('btnNextSentence').style.display = 'none';
+            document.getElementById('articleDictInput').value = '';
+
+            updateArticleDictProgress();
+            
+            // 给用户 0.5 秒准备时间后开始播放
+            setTimeout(() => { playCurrentSentence(); }, 500);
+        }
+
+        function updateArticleDictProgress() {
+            document.getElementById('articleDictProgress').innerText = `正在听写: 第 ${currentSentenceIdx + 1} 句 / 共 ${articleSentences.length} 句`;
+        }
+
+        function playCurrentSentence() {
+            // 清理可能存在的旧倒计时，防止重复播报
+            clearTimeout(sentenceReplayTimer);
+            window.speechSynthesis.cancel(); 
+            
+            const sentence = articleSentences[currentSentenceIdx];
+            const speed = parseFloat(document.getElementById('speedSelect').value);
+            const hintEl = document.getElementById('timerHint');
+
+            // 播放第一遍
+            hintEl.innerText = "🔊 第一遍播放中...";
+            hintEl.style.color = "#e67e22";
+            
+            activeUtterance = new SpeechSynthesisUtterance(sentence);
+            activeUtterance.lang = 'en-US';
+            activeUtterance.rate = speed;
+            
+            // 第一遍读完后触发
+            activeUtterance.onend = function() {
+                hintEl.innerText = "⏳ 间隔 10 秒后播放第二遍...";
+                hintEl.style.color = "#7f8c8d";
+                
+                // 设置 10 秒倒计时
+                sentenceReplayTimer = setTimeout(() => {
+                    hintEl.innerText = "🔊 第二遍播放中...";
+                    hintEl.style.color = "#e67e22";
+                    
+                    let utterance2 = new SpeechSynthesisUtterance(sentence);
+                    utterance2.lang = 'en-US';
+                    utterance2.rate = speed;
+                    
+                    utterance2.onend = function() {
+                        hintEl.innerText = "✍️ 播放完毕，请完成输入并按回车...";
+                    };
+                    window.speechSynthesis.speak(utterance2);
+                }, 10000); 
+            };
+            
+            window.speechSynthesis.speak(activeUtterance);
+            
+            // 自动把光标移入输入框，方便用户听到一半直接开始打字
+            setTimeout(() => { document.getElementById('articleDictInput').focus(); }, 100);
+        }
+
+        function checkArticleDictation() {
+            // 用户点击提交/敲回车，立刻停止发音，并取消那 10 秒的倒计时
+            clearTimeout(sentenceReplayTimer);
+            window.speechSynthesis.cancel();
+            
+            document.getElementById('timerHint').innerText = "✅ 批改完成";
+            document.getElementById('timerHint').style.color = "#27ae60";
+
+            const userInput = document.getElementById('articleDictInput').value.trim();
+            const targetSentence = articleSentences[currentSentenceIdx];
+
+            // 使用 Diff 算法进行单词级比对
+            let origWords = targetSentence.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/);
+            let userWords = userInput.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/);
+            let originalRawWords = targetSentence.split(/\s+/);
+            
+            let resultHTML =[];
+            let userIdx = 0;
+
+            for (let i = 0; i < origWords.length; i++) {
+                if (origWords[i] === "") continue;
+                
+                let found = false;
+                for (let j = userIdx; j < Math.min(userIdx + 3, userWords.length); j++) {
+                    if (origWords[i] === userWords[j]) {
+                        found = true;
+                        userIdx = j + 1;
+                        break;
+                    }
+                }
+                
+                if (found) {
+                    // 拼写正确标绿
+                    resultHTML.push(`<span style="color: #27ae60; font-weight: bold;">${originalRawWords[i]}</span>`);
+                } else {
+                    // 拼写错误或漏听标红，并加上下划线提示
+                    resultHTML.push(`<span style="color: #e74c3c; font-weight: bold; text-decoration: underline;">${originalRawWords[i]}</span>`);
+                }
+            }
+
+            const resBox = document.getElementById('articleDictResult');
+            resBox.style.display = 'block';
+            resBox.style.borderColor = "#8e44ad";
+            resBox.innerHTML = `
+                <div style="margin-bottom: 10px; font-size: 15px; color: #7f8c8d;">
+                    <strong>📝 你写的是:</strong><br> ${userInput || "(未输入内容)"}
+                </div>
+                <div style="font-size: 16px;">
+                    <strong>🎯 正确答案比对:</strong><br> ${resultHTML.join(' ')}
+                </div>
+            `;
+            
+            document.getElementById('articleDictInput').blur(); // 收起键盘
+            document.getElementById('btnNextSentence').style.display = 'block';
+        }
+
+        function nextDictationSentence() {
+            currentSentenceIdx++;
+            if (currentSentenceIdx >= articleSentences.length) {
+                alert("🎉 太棒了！本篇文章的所有句子均已听写完成！");
+                quitArticleDictation();
+                return;
+            }
+            
+            document.getElementById('articleDictResult').style.display = 'none';
+            document.getElementById('btnNextSentence').style.display = 'none';
+            document.getElementById('articleDictInput').value = '';
+            
+            updateArticleDictProgress();
+            playCurrentSentence();
+        }
+
+        function quitArticleDictation() {
+            clearTimeout(sentenceReplayTimer);
+            window.speechSynthesis.cancel();
+            document.getElementById('articleDictationSetup').style.display = 'block';
+            document.getElementById('articleDictationRunning').style.display = 'none';
         }
 
         window.onload = loadAllData;
