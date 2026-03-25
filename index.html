@@ -8,7 +8,6 @@
         body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background-color: #f2f2f7; color: #333; }
         h1 { text-align: center; color: #1c1c1e; font-size: 24px; margin-bottom: 20px; }
         
-        /* 导航栏 */
         .nav-bar { display: flex; background-color: #e3e3e8; border-radius: 10px; padding: 4px; margin-bottom: 20px; }
         .nav-btn { flex: 1; background: transparent; color: #8e8e93; border: none; padding: 10px 0; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; transition: 0.3s ease; }
         .nav-btn.active { background: white; color: #007aff; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -17,7 +16,6 @@
         .page-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* 卡片与通用样式 */
         .card { background: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         h2 { font-size: 18px; margin-top: 0; color: #2c3e50; display: flex; justify-content: space-between; align-items: center; }
         
@@ -28,15 +26,12 @@
         
         input[type="text"], select { width: 100%; padding: 12px; margin-top: 10px; border-radius: 10px; border: 1px solid #d1d1d6; box-sizing: border-box; font-size: 15px; background-color: #fafafa; }
         
-        /* 单词与例句样式 */
         .result-text { margin-top: 10px; font-weight: bold; min-height: 24px; font-size: 15px; }
         #targetWord { transition: filter 0.3s ease; cursor: pointer; }
         #chineseMeaning { text-align: center; font-size: 20px; color: #8e44ad; font-weight: bold; display: none; margin: 10px 0 0 0; animation: fadeIn 0.3s ease;}
         
-        /* 例句展示框 */
         .example-box { background-color: #fdfae6; border-left: 4px solid #f1c40f; padding: 12px; margin-top: 15px; border-radius: 8px; font-size: 16px; color: #34495e; display: none; animation: fadeIn 0.3s ease; font-style: italic;}
 
-        /* 文章专属样式 */
         .article-display { background-color: #f8f9fa; padding: 15px; border-radius: 10px; font-size: 18px; line-height: 1.6; color: #2c3e50; border: 1px solid #e9ecef; margin-top: 10px; }
         .diff-result { margin-top: 15px; padding: 15px; border-radius: 10px; background-color: #fff; border: 2px dashed #bdc3c7; font-size: 16px; line-height: 1.6; display: none; }
     </style>
@@ -58,7 +53,6 @@
                 <span id="wordCounter" style="font-size: 14px; color: #8e8e93; font-weight: normal;">1/1</span>
             </h2>
             
-            <!-- 新增：分组选择器 -->
             <select id="groupSelect" onchange="changeGroup()" style="font-weight: bold; color: #2980b9; border: 2px solid #3498db;">
                 <option value="all">📚 整体练习 (加载中...)</option>
             </select>
@@ -70,17 +64,13 @@
 
             <p id="chineseMeaning">中文释义</p>
             
-            <!-- 新增：例句展示区 -->
-            <div id="exampleSentence" class="example-box">
-                This is an example sentence.
-            </div>
+            <div id="exampleSentence" class="example-box"></div>
             
             <div class="row-buttons">
                 <button class="action-btn" onclick="readTargetWord()" style="background-color: #27ae60;">🔊 听标准音</button>
                 <button class="action-btn" onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button>
             </div>
 
-            <!-- 新增：查看并朗读例句按钮 -->
             <div class="row-buttons">
                 <button class="action-btn" onclick="toggleMeaning()" style="background-color: #9b59b6;">👀 看中文</button>
                 <button class="action-btn" onclick="showAndPlayExample()" style="background-color: #f39c12;">📖 看/读例句</button>
@@ -88,7 +78,6 @@
             
             <p id="wordResult" class="result-text"></p>
             
-            <!-- 从头开始按钮，会根据当前分组智能归零 -->
             <div class="row-buttons">
                 <button class="action-btn" onclick="restartWords()" style="background-color: #7f8c8d;">🔄 从头开始</button>
                 <button class="action-btn" onclick="nextWord()" style="background-color: #34495e;">⏭️ 下一个单词</button>
@@ -106,7 +95,6 @@
 
     <!-- ================= 页面 2：文章跟读 ================= -->
     <div id="page-articles" class="page-section">
-        <!-- 此处保持你上一版本的完美代码 -->
         <div class="card">
             <h2>📖 智能文章跟读 
                 <select id="articleSelect" onchange="changeArticle()" style="width: auto; padding: 5px; margin: 0; font-size: 14px;">
@@ -147,7 +135,6 @@
     </div>
 
     <script>
-        // ================= 导航栏逻辑 =================
         function switchTab(tabName) {
             document.querySelectorAll('.page-section').forEach(page => page.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -155,28 +142,21 @@
             document.getElementById('btn-' + tabName).classList.add('active');
         }
 
-        // ================= 核心数据结构 =================
-        // wordList 现在包含 { en:英文, zh:中文, ex:例句 }
-        let wordList =[{ en: "Apple", zh: "苹果(示例)", ex: "An apple a day keeps the doctor away." }]; 
-        let currentWordIndex = 0; // 全局绝对索引
-        
+        let wordList =[{ en: "Apple", zh: "苹果(示例)", ex: "An apple a day. 每天吃苹果。" }]; 
+        let currentWordIndex = 0; 
         let articleList =["Please create Texts.txt file."];
         let currentArticleIndex = 0;
 
         async function loadAllData() {
-            // 1. 加载并智能解析 NewWords.txt (两行一组：单词 + 例句)
             try {
                 const wRes = await fetch('NewWords.txt');
                 if (wRes.ok) {
                     const wText = await wRes.text();
                     const rawLines = wText.split(/\r?\n/).map(w => w.trim()).filter(w => w.length > 0);  
-                    
                     wordList =[];
-                    // 每次循环跳 2 步，读取 单词行 和 例句行
                     for (let i = 0; i < rawLines.length; i += 2) {
                         const wordLine = rawLines[i];
                         const sentenceLine = (i + 1 < rawLines.length) ? rawLines[i+1] : "暂无例句。";
-                        
                         const parts = wordLine.split(/\||:|：/);
                         wordList.push({
                             en: parts[0].trim(),
@@ -186,13 +166,8 @@
                     }
                 }
             } catch (e) { console.log("单词库未找到"); }
-            
-            if (wordList.length > 0) {
-                initGroupSelect();
-                updateWordDisplay();
-            }
+            if (wordList.length > 0) { initGroupSelect(); updateWordDisplay(); }
 
-            // 2. 加载 Texts.txt
             try {
                 const aRes = await fetch('Texts.txt');
                 if (aRes.ok) {
@@ -203,24 +178,19 @@
             if (articleList.length > 0) { initArticleSelect(); updateArticleDisplay(); }
         }
 
-        // ================= 分组逻辑与计算 =================
         function initGroupSelect() {
             const select = document.getElementById('groupSelect');
             select.innerHTML = `<option value="all">📚 整体练习 (共 ${wordList.length} 词)</option>`;
-            
-            // 每 10 个词为一组计算分组总数
             const groupCount = Math.ceil(wordList.length / 10);
             for (let i = 0; i < groupCount; i++) {
                 const start = i * 10 + 1;
                 const end = Math.min((i + 1) * 10, wordList.length);
                 let option = document.createElement('option');
-                option.value = i;
-                option.text = `📦 第 ${i + 1} 组 (词汇 ${start} - ${end})`;
+                option.value = i; option.text = `📦 第 ${i + 1} 组 (词汇 ${start} - ${end})`;
                 select.appendChild(option);
             }
         }
 
-        // 获取当前所选模式的 起点、终点和总数
         function getGroupBounds() {
             const val = document.getElementById('groupSelect').value;
             if (val === 'all') {
@@ -228,35 +198,25 @@
             } else {
                 const gIdx = parseInt(val);
                 const start = gIdx * 10;
-                const end = Math.min(start + 9, wordList.length - 1);
-                return { start, end, total: end - start + 1 };
+                return { start, end: Math.min(start + 9, wordList.length - 1), total: Math.min(start + 9, wordList.length - 1) - start + 1 };
             }
         }
 
-        // 切换下拉菜单时触发
-        function changeGroup() {
-            const bounds = getGroupBounds();
-            currentWordIndex = bounds.start; // 切换分组时，强制回到该组第一个词
-            updateWordDisplay();
-        }
+        function changeGroup() { currentWordIndex = getGroupBounds().start; updateWordDisplay(); }
 
-        // ================= 单词练习视图逻辑 =================
         function updateWordDisplay() {
             const bounds = getGroupBounds();
-            // 计算当前词在“当前组”里是第几个 (相对序号)
             const relativeIndex = currentWordIndex - bounds.start + 1;
-            
             document.getElementById('targetWord').innerText = wordList[currentWordIndex].en;
             document.getElementById('wordCounter').innerText = `${relativeIndex} / ${bounds.total}`;
             
-            // 隐藏中文和例句
             document.getElementById('chineseMeaning').style.display = 'none';
             document.getElementById('chineseMeaning').innerText = wordList[currentWordIndex].zh;
             
             document.getElementById('exampleSentence').style.display = 'none';
+            // 屏幕上依然完整显示中英文例句
             document.getElementById('exampleSentence').innerText = wordList[currentWordIndex].ex;
 
-            // 清理听写记录
             document.getElementById('wordResult').innerText = ""; 
             document.getElementById('dictationInput').value = ""; 
             document.getElementById('dictationResult').innerText = "";
@@ -268,35 +228,37 @@
             el.style.display = el.style.display === 'none' ? 'block' : 'none';
         }
 
+        // ================= 【核心优化点：例句朗读过滤中文】 =================
         function showAndPlayExample() {
             const exEl = document.getElementById('exampleSentence');
-            exEl.style.display = 'block'; // 每次点击都确保它是显示的
+            exEl.style.display = 'block'; 
 
-            // 朗读例句
-            const sentence = wordList[currentWordIndex].ex;
-            if (sentence !== "暂无例句。") {
-                const utterance = new SpeechSynthesisUtterance(sentence);
-                utterance.lang = 'en-US'; 
-                window.speechSynthesis.speak(utterance);
+            const fullSentence = wordList[currentWordIndex].ex;
+            if (fullSentence !== "暂无例句。") {
+                // 使用正则表达式过滤掉所有非 ASCII 字符（即自动删掉所有的中文和全角符号）
+                // 这样喂给语音引擎的就只有纯正的英文了
+                const englishPart = fullSentence.replace(/[^\x00-\xff]/g, '').trim();
+                
+                if (englishPart.length > 0) {
+                    const utterance = new SpeechSynthesisUtterance(englishPart);
+                    utterance.lang = 'en-US'; 
+                    window.speechSynthesis.speak(utterance);
+                }
             }
         }
+        // =================================================================
 
         function nextWord() {
             if (wordList.length === 0) return;
             const bounds = getGroupBounds();
             currentWordIndex++;
-            // 如果超出了当前分组的结尾，就回到当前分组的开头 (形成闭环)
-            if (currentWordIndex > bounds.end) {
-                currentWordIndex = bounds.start;
-            }
+            if (currentWordIndex > bounds.end) currentWordIndex = bounds.start;
             updateWordDisplay();
         }
 
         function restartWords() {
             if (wordList.length === 0) return;
-            const bounds = getGroupBounds();
-            currentWordIndex = bounds.start; // 智能归零到本组开头
-            updateWordDisplay();
+            currentWordIndex = getGroupBounds().start; updateWordDisplay();
         }
 
         function toggleBlur() {
@@ -307,8 +269,7 @@
         function readTargetWord() {
             document.getElementById('targetWord').style.filter = 'blur(8px)';
             const utterance = new SpeechSynthesisUtterance(wordList[currentWordIndex].en);
-            utterance.lang = 'en-US'; 
-            window.speechSynthesis.speak(utterance);
+            utterance.lang = 'en-US'; window.speechSynthesis.speak(utterance);
             setTimeout(() => { document.getElementById('dictationInput').focus(); }, 100);
         }
 
@@ -320,7 +281,6 @@
             document.getElementById('wordResult').style.color = "#333";
             document.getElementById('wordResult').innerText = "正在聆听...请说话";
             recognition.start();
-            
             recognition.onresult = function(event) {
                 const transcript = event.results[0][0].transcript.toLowerCase().replace(/[.,!?]/g, '').trim();
                 const target = wordList[currentWordIndex].en.toLowerCase().trim();
@@ -337,27 +297,21 @@
             const userInput = document.getElementById('dictationInput').value.toLowerCase().trim();
             const targetWord = wordList[currentWordIndex].en.toLowerCase().trim();
             const resultEl = document.getElementById('dictationResult');
-            
             if (userInput === "") return resultEl.innerText = "⚠️ 请先输入单词！";
             if (userInput === targetWord) {
-                resultEl.style.color = "#27ae60"; 
-                resultEl.innerHTML = `✅ 完全正确！拼写为: <strong>${wordList[currentWordIndex].en}</strong>`;
-                document.getElementById('targetWord').style.filter = 'none';
-                document.getElementById('dictationInput').blur(); 
+                resultEl.style.color = "#27ae60"; resultEl.innerHTML = `✅ 完全正确！拼写为: <strong>${wordList[currentWordIndex].en}</strong>`;
+                document.getElementById('targetWord').style.filter = 'none'; document.getElementById('dictationInput').blur(); 
                 setTimeout(() => { nextWord(); }, 1500);
             } else {
-                resultEl.style.color = "#e74c3c"; 
-                resultEl.innerHTML = `❌ 拼写错误。你输入的是 "${userInput}"`;
+                resultEl.style.color = "#e74c3c"; resultEl.innerHTML = `❌ 拼写错误。你输入的是 "${userInput}"`;
             }
         }
 
         // ================= 文章跟读逻辑 =================
         function initArticleSelect() {
-            const select = document.getElementById('articleSelect');
-            select.innerHTML = ''; 
+            const select = document.getElementById('articleSelect'); select.innerHTML = ''; 
             articleList.forEach((_, index) => {
-                let option = document.createElement('option');
-                option.value = index; option.text = `第 ${index + 1} 段`; select.appendChild(option);
+                let option = document.createElement('option'); option.value = index; option.text = `第 ${index + 1} 段`; select.appendChild(option);
             });
         }
         function changeArticle() { currentArticleIndex = parseInt(document.getElementById('articleSelect').value); updateArticleDisplay(); }
@@ -373,8 +327,7 @@
 
         function speakArticle() {
             const utterance = new SpeechSynthesisUtterance(articleList[currentArticleIndex]);
-            utterance.lang = 'en-US'; 
-            utterance.rate = parseFloat(document.getElementById('speedSelect').value); 
+            utterance.lang = 'en-US'; utterance.rate = parseFloat(document.getElementById('speedSelect').value); 
             window.speechSynthesis.speak(utterance);
         }
 
