@@ -23,8 +23,8 @@
         
         button.action-btn { background-color: #007aff; color: white; border: none; padding: 14px 20px; border-radius: 12px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 10px; cursor: pointer; }
         button.action-btn:active { opacity: 0.8; }
-        .row-buttons { display: flex; gap: 10px; flex-wrap: wrap; } 
-        .row-buttons button { margin-top: 10px; flex: 1; min-width: 45%; }
+        .row-buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; } 
+        .row-buttons button { margin-top: 10px; flex: 1; min-width: 40%; }
         
         input[type="text"], select { width: 100%; padding: 14px; margin-top: 10px; border-radius: 10px; border: 1px solid #d1d1d6; box-sizing: border-box; font-size: 16px; background-color: #fafafa; }
         
@@ -58,7 +58,6 @@
                 <span style="font-size: 12px; color: #95a5a6; text-align: center; display: block;">👆 点击播放发音时会自动模糊单词</span>
             </p>
 
-            <!-- 中文释义显示区 (默认隐藏) -->
             <p id="chineseMeaning">苹果</p>
             
             <div class="row-buttons">
@@ -66,11 +65,15 @@
                 <button class="action-btn" onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button>
             </div>
 
-            <!-- 新增：查看中文按钮 -->
             <button class="action-btn" onclick="toggleMeaning()" style="background-color: #9b59b6;">👀 查看 / 隐藏中文意思</button>
             
             <p id="wordResult" class="result-text"></p>
-            <button class="action-btn" onclick="nextWord()" style="background-color: #34495e;">⏭️ 切换下一个单词</button>
+            
+            <!-- 新增：从头开始按钮 -->
+            <div class="row-buttons">
+                <button class="action-btn" onclick="restartWords()" style="background-color: #7f8c8d;">🔄 从头开始</button>
+                <button class="action-btn" onclick="nextWord()" style="background-color: #34495e;">⏭️ 下一个单词</button>
+            </div>
         </div>
 
         <div class="card">
@@ -91,15 +94,30 @@
                 </select>
             </h2>
             <p style="font-size: 14px; color: #7f8c8d; margin-top: 5px;">听原音并跟读，AI 会自动为你纠错：</p>
+            
             <div id="articleDisplay" class="article-display">文章加载中...</div>
+            
+            <!-- 新增：语速设置 -->
+            <div class="row-buttons">
+                <select id="speedSelect" style="width: 100%; padding: 12px; margin-top: 10px; border-radius: 12px; font-size: 15px; font-weight: bold; color: #2c3e50; border: 2px solid #8e44ad;">
+                    <option value="0.5">🐢 0.5x 慢速朗读</option>
+                    <option value="0.75">🚶 0.75x 较慢朗读</option>
+                    <option value="1" selected>🏃 1.0x 正常语速</option>
+                    <option value="1.25">🚴 1.25x 较快语速</option>
+                    <option value="1.5">🚀 1.5x 极速挑战</option>
+                </select>
+            </div>
+
             <div class="row-buttons">
                 <button class="action-btn" onclick="speakArticle()" style="background-color: #8e44ad;">🔊 老师范读</button>
                 <button class="action-btn" onclick="startListeningForArticle()" style="background-color: #e67e22;">🎤 开始跟读</button>
             </div>
+            
             <div id="diffResult" class="diff-result">
                 <strong>🧐 纠错报告：</strong><br><span id="diffContent"></span>
                 <p style="font-size: 12px; color: #7f8c8d; margin-top: 10px;">(绿色为发音正确，<span style="color:#e74c3c;text-decoration:line-through;">红色划线</span>为漏读或发音不准)</p>
             </div>
+            
             <div class="row-buttons">
                 <button class="action-btn" onclick="startListeningForArticle()" style="background-color: #3498db;">🔄 再试一次</button>
                 <button class="action-btn" onclick="nextArticle()" style="background-color: #2c3e50;">⏭️ 下一段文章</button>
@@ -125,7 +143,6 @@
         }
 
         // ================= 数据加载逻辑 =================
-        // 单词库现在变成了一个对象数组，包含英文(en)和中文(zh)
         let wordList =[{ en: "Apple", zh: "苹果(示例)" }]; 
         let currentWordIndex = 0;
         
@@ -133,15 +150,15 @@
         let currentArticleIndex = 0;
 
         async function loadAllData() {
-            // 1. 加载并智能解析单词库
+            // 1. 加载并解析 NewWords.txt (更改了文件名，且严格按照回车键分割)
             try {
                 const wRes = await fetch('NewWords.txt');
                 if (wRes.ok) {
                     const wText = await wRes.text();
-                    const rawWords = wText.split(/,|\s{2,}|\n/).map(w => w.trim()).filter(w => w.length > 0);  
+                    // 核心修改：只按换行符(\n 或 \r\n)进行分割，一行一个单词
+                    const rawWords = wText.split(/\r?\n/).map(w => w.trim()).filter(w => w.length > 0);  
                     
                     wordList = rawWords.map(item => {
-                        // 使用正则拆分单词和中文，支持 | 或者 : 或者 ：
                         const parts = item.split(/\||:|：/);
                         if (parts.length > 1) {
                             return { en: parts[0].trim(), zh: parts[1].trim() };
@@ -153,7 +170,7 @@
             } catch (e) { console.log("单词库未找到"); }
             if (wordList.length > 0) updateWordDisplay();
 
-            // 2. 加载文章库
+            // 2. 加载 Texts.txt
             try {
                 const aRes = await fetch('Texts.txt');
                 if (aRes.ok) {
@@ -170,35 +187,34 @@
 
         // ================= 单词练习逻辑 =================
         function updateWordDisplay() {
-            // 更新英文
             document.getElementById('targetWord').innerText = wordList[currentWordIndex].en;
             document.getElementById('wordCounter').innerText = `${currentWordIndex + 1} / ${wordList.length}`;
             
-            // 更新并隐藏中文
             const meaningEl = document.getElementById('chineseMeaning');
             meaningEl.innerText = wordList[currentWordIndex].zh;
             meaningEl.style.display = 'none';
 
-            // 清理状态
             document.getElementById('wordResult').innerText = ""; 
             document.getElementById('dictationInput').value = ""; 
             document.getElementById('dictationResult').innerText = "";
             document.getElementById('targetWord').style.filter = 'none';
         }
 
-        // 切换中文显示的开关
         function toggleMeaning() {
             const meaningEl = document.getElementById('chineseMeaning');
-            if (meaningEl.style.display === 'none') {
-                meaningEl.style.display = 'block';
-            } else {
-                meaningEl.style.display = 'none';
-            }
+            meaningEl.style.display = meaningEl.style.display === 'none' ? 'block' : 'none';
         }
 
         function nextWord() {
             if (wordList.length === 0) return;
             currentWordIndex = (currentWordIndex + 1) % wordList.length; 
+            updateWordDisplay();
+        }
+
+        // 新增：从头开始功能
+        function restartWords() {
+            if (wordList.length === 0) return;
+            currentWordIndex = 0; // 进度归零
             updateWordDisplay();
         }
 
@@ -209,7 +225,6 @@
 
         function readTargetWord() {
             document.getElementById('targetWord').style.filter = 'blur(8px)';
-            // 注意这里只读英文部分(.en)
             const utterance = new SpeechSynthesisUtterance(wordList[currentWordIndex].en);
             utterance.lang = 'en-US'; 
             window.speechSynthesis.speak(utterance);
@@ -255,7 +270,7 @@
             }
         }
 
-        // ================= 文章跟读逻辑 (保持不变) =================
+        // ================= 文章跟读逻辑 =================
         function initArticleSelect() {
             const select = document.getElementById('articleSelect');
             select.innerHTML = ''; 
@@ -274,10 +289,19 @@
             document.getElementById('articleDisplay').innerText = articleList[currentArticleIndex];
             document.getElementById('diffResult').style.display = 'none'; 
         }
+
+        // 核心修改：朗读文章时读取语速设置
         function speakArticle() {
             const utterance = new SpeechSynthesisUtterance(articleList[currentArticleIndex]);
-            utterance.lang = 'en-US'; utterance.rate = 0.85; window.speechSynthesis.speak(utterance);
+            utterance.lang = 'en-US'; 
+            
+            // 获取用户选择的语速
+            const speed = parseFloat(document.getElementById('speedSelect').value);
+            utterance.rate = speed; 
+            
+            window.speechSynthesis.speak(utterance);
         }
+
         function startListeningForArticle() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) return;
