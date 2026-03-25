@@ -31,7 +31,8 @@
         #chineseMeaning { text-align: center; font-size: 20px; color: #8e44ad; font-weight: bold; display: none; margin: 10px 0 0 0; animation: fadeIn 0.3s ease;}
         .example-box { background-color: #fdfae6; border-left: 4px solid #f1c40f; padding: 12px; margin-top: 15px; border-radius: 8px; font-size: 16px; color: #34495e; display: none; animation: fadeIn 0.3s ease; font-style: italic;}
 
-        .article-display { background-color: #f8f9fa; padding: 15px; border-radius: 10px; font-size: 18px; line-height: 1.6; color: #2c3e50; border: 1px solid #e9ecef; margin-top: 10px; }
+        /* 文章专属样式，增加了 transition 以支持平滑模糊 */
+        .article-display { background-color: #f8f9fa; padding: 15px; border-radius: 10px; font-size: 18px; line-height: 1.6; color: #2c3e50; border: 1px solid #e9ecef; margin-top: 10px; transition: filter 0.3s ease; }
         .diff-result { margin-top: 15px; padding: 15px; border-radius: 10px; background-color: #fff; border: 2px dashed #bdc3c7; font-size: 16px; line-height: 1.6; display: none; }
 
         .test-progress { font-size: 16px; color: #2980b9; text-align: center; margin-bottom: 10px; font-weight: bold; background: #eaf2f8; padding: 10px; border-radius: 8px;}
@@ -196,7 +197,6 @@
         let articleList =["Please create Texts.txt file."];
         let currentArticleIndex = 0;
         
-        // 保存用于避免 iOS 垃圾回收的声音对象
         let activeUtterance = null; 
 
         async function loadAllData() {
@@ -230,7 +230,7 @@
             if (articleList.length > 0) { initArticleSelect(); updateArticleDisplay(); }
         }
 
-        // ================= 单词功能区域 (全部保留) =================
+        // ================= 单词功能区域 =================
         function initGroupSelect() {
             const select = document.getElementById('groupSelect');
             select.innerHTML = `<option value="all">📚 整体练习 (共 ${wordList.length} 词)</option>`;
@@ -261,7 +261,7 @@
             document.getElementById('wordResult').innerText = ""; 
             document.getElementById('dictationInput').value = ""; 
             document.getElementById('dictationResult').innerText = "";
-            document.getElementById('targetWord').style.filter = 'none';
+            document.getElementById('targetWord').style.filter = 'none'; // 恢复清晰
         }
         function toggleMeaning() { const el = document.getElementById('chineseMeaning'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
         function showAndPlayExample() {
@@ -315,20 +315,30 @@
             } else { resultEl.style.color = "#e74c3c"; resultEl.innerHTML = `❌ 拼写错误。`; }
         }
 
+        // ================= 单词小组连续测验逻辑 =================
         let groupTestBounds = null; let groupTestAnswers =[]; let groupTestCurrentIndex = 0;
+        
         function startGroupTest() {
             if (wordList.length === 0) return;
             groupTestBounds = getGroupBounds(); groupTestAnswers =[]; groupTestCurrentIndex = 0;
-            document.getElementById('dictationSingleMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'none'; document.getElementById('dictationGroupMode').style.display = 'block';
+            document.getElementById('dictationSingleMode').style.display = 'none'; 
+            document.getElementById('dictationResultMode').style.display = 'none'; 
+            document.getElementById('dictationGroupMode').style.display = 'block';
             document.getElementById('groupTestInput').value = '';
             document.getElementById('groupTestProgress').innerText = `📝 听写测验: 第 ${groupTestCurrentIndex + 1} 词 / 共 ${groupTestBounds.total} 词`;
+            
+            // 【核心防御】：开始测验瞬间，把上方的目标单词模糊掉防偷看！
+            document.getElementById('targetWord').style.filter = 'blur(8px)';
+            
             setTimeout(() => { playTestWord(); }, 600);
         }
+
         function playTestWord() {
             activeUtterance = new SpeechSynthesisUtterance(wordList[groupTestBounds.start + groupTestCurrentIndex].en);
             activeUtterance.lang = 'en-US'; window.speechSynthesis.speak(activeUtterance);
             setTimeout(() => { document.getElementById('groupTestInput').focus(); }, 100);
         }
+
         function submitTestWord() {
             const inputEl = document.getElementById('groupTestInput'); groupTestAnswers.push(inputEl.value.trim()); inputEl.value = '';
             groupTestCurrentIndex++;
@@ -337,8 +347,14 @@
                 setTimeout(() => { playTestWord(); }, 400);
             } else { showGroupTestResult(); }
         }
+
         function showGroupTestResult() {
-            document.getElementById('dictationGroupMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'block';
+            document.getElementById('dictationGroupMode').style.display = 'none'; 
+            document.getElementById('dictationResultMode').style.display = 'block';
+            
+            // 出成绩时恢复上方单词清晰度
+            document.getElementById('targetWord').style.filter = 'none'; 
+
             let correctCount = 0; let htmlList = '';
             for (let i = 0; i < groupTestBounds.total; i++) {
                 let absIndex = groupTestBounds.start + i; let targetWord = wordList[absIndex].en; let userAnswer = groupTestAnswers[i] || "";
@@ -353,7 +369,14 @@
             document.getElementById('groupTestScore').innerHTML = `<span style="color: ${accuracy >= 80 ? '#27ae60' : (accuracy >= 60 ? '#f39c12' : '#e74c3c')};">🎯 正确率: ${accuracy}%</span><br><span style="font-size: 16px; color: #7f8c8d;">(写对 ${correctCount} 个 / 共 ${groupTestBounds.total} 个)</span>`;
             document.getElementById('groupTestResultList').innerHTML = htmlList; document.getElementById('groupTestInput').blur();
         }
-        function quitGroupTest() { document.getElementById('dictationGroupMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'none'; document.getElementById('dictationSingleMode').style.display = 'block'; }
+
+        function quitGroupTest() { 
+            document.getElementById('dictationGroupMode').style.display = 'none'; 
+            document.getElementById('dictationResultMode').style.display = 'none'; 
+            document.getElementById('dictationSingleMode').style.display = 'block'; 
+            // 退出测验时也恢复清晰度
+            document.getElementById('targetWord').style.filter = 'none';
+        }
 
         // ================= 文章普通跟读 =================
         function initArticleSelect() {
@@ -377,6 +400,8 @@
         function updateArticleDisplay() {
             document.getElementById('articleDisplay').innerText = articleList[currentArticleIndex];
             document.getElementById('diffResult').style.display = 'none'; 
+            // 切换文章时恢复文章清晰显示
+            document.getElementById('articleDisplay').style.filter = 'none';
         }
         function speakArticle() {
             activeUtterance = new SpeechSynthesisUtterance(articleList[currentArticleIndex]);
@@ -413,7 +438,7 @@
             return resultHTML.join(' ');
         }
 
-        // ================= 核心升级：文章逐句听写 =================
+        // ================= 文章逐句听写 =================
         let articleSentences =[];
         let currentSentenceIdx = 0;
         let sentenceReplayTimer = null;
@@ -422,10 +447,7 @@
             if (articleList.length === 0) return alert("文章库为空！");
             
             const articleText = articleList[currentArticleIndex];
-            
-            // 使用正则智能切分句子（按 . ! ? 切分，并保留标点符号）
             articleSentences = articleText.match(/[^.!?]+[.!?]+/g) || [articleText];
-            // 去除多余空格
             articleSentences = articleSentences.map(s => s.trim()).filter(s => s.length > 0);
             
             currentSentenceIdx = 0;
@@ -436,9 +458,11 @@
             document.getElementById('btnNextSentence').style.display = 'none';
             document.getElementById('articleDictInput').value = '';
 
+            // 【核心防御】：开始精听时，将上方文章全文打上马赛克防止作弊
+            document.getElementById('articleDisplay').style.filter = 'blur(8px)';
+
             updateArticleDictProgress();
             
-            // 给用户 0.5 秒准备时间后开始播放
             setTimeout(() => { playCurrentSentence(); }, 500);
         }
 
@@ -447,7 +471,6 @@
         }
 
         function playCurrentSentence() {
-            // 清理可能存在的旧倒计时，防止重复播报
             clearTimeout(sentenceReplayTimer);
             window.speechSynthesis.cancel(); 
             
@@ -455,7 +478,6 @@
             const speed = parseFloat(document.getElementById('speedSelect').value);
             const hintEl = document.getElementById('timerHint');
 
-            // 播放第一遍
             hintEl.innerText = "🔊 第一遍播放中...";
             hintEl.style.color = "#e67e22";
             
@@ -463,12 +485,10 @@
             activeUtterance.lang = 'en-US';
             activeUtterance.rate = speed;
             
-            // 第一遍读完后触发
             activeUtterance.onend = function() {
                 hintEl.innerText = "⏳ 间隔 10 秒后播放第二遍...";
                 hintEl.style.color = "#7f8c8d";
                 
-                // 设置 10 秒倒计时
                 sentenceReplayTimer = setTimeout(() => {
                     hintEl.innerText = "🔊 第二遍播放中...";
                     hintEl.style.color = "#e67e22";
@@ -485,13 +505,10 @@
             };
             
             window.speechSynthesis.speak(activeUtterance);
-            
-            // 自动把光标移入输入框，方便用户听到一半直接开始打字
             setTimeout(() => { document.getElementById('articleDictInput').focus(); }, 100);
         }
 
         function checkArticleDictation() {
-            // 用户点击提交/敲回车，立刻停止发音，并取消那 10 秒的倒计时
             clearTimeout(sentenceReplayTimer);
             window.speechSynthesis.cancel();
             
@@ -501,7 +518,6 @@
             const userInput = document.getElementById('articleDictInput').value.trim();
             const targetSentence = articleSentences[currentSentenceIdx];
 
-            // 使用 Diff 算法进行单词级比对
             let origWords = targetSentence.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/);
             let userWords = userInput.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/);
             let originalRawWords = targetSentence.split(/\s+/);
@@ -522,10 +538,8 @@
                 }
                 
                 if (found) {
-                    // 拼写正确标绿
                     resultHTML.push(`<span style="color: #27ae60; font-weight: bold;">${originalRawWords[i]}</span>`);
                 } else {
-                    // 拼写错误或漏听标红，并加上下划线提示
                     resultHTML.push(`<span style="color: #e74c3c; font-weight: bold; text-decoration: underline;">${originalRawWords[i]}</span>`);
                 }
             }
@@ -542,7 +556,7 @@
                 </div>
             `;
             
-            document.getElementById('articleDictInput').blur(); // 收起键盘
+            document.getElementById('articleDictInput').blur(); 
             document.getElementById('btnNextSentence').style.display = 'block';
         }
 
@@ -567,6 +581,9 @@
             window.speechSynthesis.cancel();
             document.getElementById('articleDictationSetup').style.display = 'block';
             document.getElementById('articleDictationRunning').style.display = 'none';
+            
+            // 退出文章精听测验时，将上方文章恢复清晰
+            document.getElementById('articleDisplay').style.filter = 'none';
         }
 
         window.onload = loadAllData;
