@@ -26,12 +26,15 @@
         .row-buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; } 
         .row-buttons button { margin-top: 10px; flex: 1; min-width: 40%; }
         
-        input[type="text"], select { width: 100%; padding: 14px; margin-top: 10px; border-radius: 10px; border: 1px solid #d1d1d6; box-sizing: border-box; font-size: 16px; background-color: #fafafa; }
+        input[type="text"], select { width: 100%; padding: 12px; margin-top: 10px; border-radius: 10px; border: 1px solid #d1d1d6; box-sizing: border-box; font-size: 15px; background-color: #fafafa; }
         
-        /* 单词与中文释义样式 */
+        /* 单词与例句样式 */
         .result-text { margin-top: 10px; font-weight: bold; min-height: 24px; font-size: 15px; }
         #targetWord { transition: filter 0.3s ease; cursor: pointer; }
-        #chineseMeaning { text-align: center; font-size: 22px; color: #8e44ad; font-weight: bold; display: none; margin: 15px 0 0 0; animation: fadeIn 0.3s ease;}
+        #chineseMeaning { text-align: center; font-size: 20px; color: #8e44ad; font-weight: bold; display: none; margin: 10px 0 0 0; animation: fadeIn 0.3s ease;}
+        
+        /* 例句展示框 */
+        .example-box { background-color: #fdfae6; border-left: 4px solid #f1c40f; padding: 12px; margin-top: 15px; border-radius: 8px; font-size: 16px; color: #34495e; display: none; animation: fadeIn 0.3s ease; font-style: italic;}
 
         /* 文章专属样式 */
         .article-display { background-color: #f8f9fa; padding: 15px; border-radius: 10px; font-size: 18px; line-height: 1.6; color: #2c3e50; border: 1px solid #e9ecef; margin-top: 10px; }
@@ -51,25 +54,41 @@
     <!-- ================= 页面 1：单词练习 ================= -->
     <div id="page-words" class="page-section active">
         <div class="card" style="border: 2px solid #3498db;">
-            <h2>🗣️ 单词发音与跟读 <span id="wordCounter" style="font-size: 14px; color: #8e8e93; font-weight: normal;">1/1</span></h2>
+            <h2>🗣️ 单词发音与跟读 
+                <span id="wordCounter" style="font-size: 14px; color: #8e8e93; font-weight: normal;">1/1</span>
+            </h2>
             
+            <!-- 新增：分组选择器 -->
+            <select id="groupSelect" onchange="changeGroup()" style="font-weight: bold; color: #2980b9; border: 2px solid #3498db;">
+                <option value="all">📚 整体练习 (加载中...)</option>
+            </select>
+
             <p>
                 <strong style="font-size: 36px; color: #27ae60; display: block; text-align: center; margin: 15px 0 5px 0;" id="targetWord" onclick="toggleBlur()">加载中...</strong>
                 <span style="font-size: 12px; color: #95a5a6; text-align: center; display: block;">👆 点击播放发音时会自动模糊单词</span>
             </p>
 
-            <p id="chineseMeaning">苹果</p>
+            <p id="chineseMeaning">中文释义</p>
+            
+            <!-- 新增：例句展示区 -->
+            <div id="exampleSentence" class="example-box">
+                This is an example sentence.
+            </div>
             
             <div class="row-buttons">
                 <button class="action-btn" onclick="readTargetWord()" style="background-color: #27ae60;">🔊 听标准音</button>
                 <button class="action-btn" onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button>
             </div>
 
-            <button class="action-btn" onclick="toggleMeaning()" style="background-color: #9b59b6;">👀 查看 / 隐藏中文意思</button>
+            <!-- 新增：查看并朗读例句按钮 -->
+            <div class="row-buttons">
+                <button class="action-btn" onclick="toggleMeaning()" style="background-color: #9b59b6;">👀 看中文</button>
+                <button class="action-btn" onclick="showAndPlayExample()" style="background-color: #f39c12;">📖 看/读例句</button>
+            </div>
             
             <p id="wordResult" class="result-text"></p>
             
-            <!-- 新增：从头开始按钮 -->
+            <!-- 从头开始按钮，会根据当前分组智能归零 -->
             <div class="row-buttons">
                 <button class="action-btn" onclick="restartWords()" style="background-color: #7f8c8d;">🔄 从头开始</button>
                 <button class="action-btn" onclick="nextWord()" style="background-color: #34495e;">⏭️ 下一个单词</button>
@@ -87,6 +106,7 @@
 
     <!-- ================= 页面 2：文章跟读 ================= -->
     <div id="page-articles" class="page-section">
+        <!-- 此处保持你上一版本的完美代码 -->
         <div class="card">
             <h2>📖 智能文章跟读 
                 <select id="articleSelect" onchange="changeArticle()" style="width: auto; padding: 5px; margin: 0; font-size: 14px;">
@@ -94,10 +114,7 @@
                 </select>
             </h2>
             <p style="font-size: 14px; color: #7f8c8d; margin-top: 5px;">听原音并跟读，AI 会自动为你纠错：</p>
-            
             <div id="articleDisplay" class="article-display">文章加载中...</div>
-            
-            <!-- 新增：语速设置 -->
             <div class="row-buttons">
                 <select id="speedSelect" style="width: 100%; padding: 12px; margin-top: 10px; border-radius: 12px; font-size: 15px; font-weight: bold; color: #2c3e50; border: 2px solid #8e44ad;">
                     <option value="0.5">🐢 0.5x 慢速朗读</option>
@@ -107,17 +124,13 @@
                     <option value="1.5">🚀 1.5x 极速挑战</option>
                 </select>
             </div>
-
             <div class="row-buttons">
                 <button class="action-btn" onclick="speakArticle()" style="background-color: #8e44ad;">🔊 老师范读</button>
                 <button class="action-btn" onclick="startListeningForArticle()" style="background-color: #e67e22;">🎤 开始跟读</button>
             </div>
-            
             <div id="diffResult" class="diff-result">
                 <strong>🧐 纠错报告：</strong><br><span id="diffContent"></span>
-                <p style="font-size: 12px; color: #7f8c8d; margin-top: 10px;">(绿色为发音正确，<span style="color:#e74c3c;text-decoration:line-through;">红色划线</span>为漏读或发音不准)</p>
             </div>
-            
             <div class="row-buttons">
                 <button class="action-btn" onclick="startListeningForArticle()" style="background-color: #3498db;">🔄 再试一次</button>
                 <button class="action-btn" onclick="nextArticle()" style="background-color: #2c3e50;">⏭️ 下一段文章</button>
@@ -142,33 +155,42 @@
             document.getElementById('btn-' + tabName).classList.add('active');
         }
 
-        // ================= 数据加载逻辑 =================
-        let wordList =[{ en: "Apple", zh: "苹果(示例)" }]; 
-        let currentWordIndex = 0;
+        // ================= 核心数据结构 =================
+        // wordList 现在包含 { en:英文, zh:中文, ex:例句 }
+        let wordList =[{ en: "Apple", zh: "苹果(示例)", ex: "An apple a day keeps the doctor away." }]; 
+        let currentWordIndex = 0; // 全局绝对索引
         
         let articleList =["Please create Texts.txt file."];
         let currentArticleIndex = 0;
 
         async function loadAllData() {
-            // 1. 加载并解析 NewWords.txt (更改了文件名，且严格按照回车键分割)
+            // 1. 加载并智能解析 NewWords.txt (两行一组：单词 + 例句)
             try {
                 const wRes = await fetch('NewWords.txt');
                 if (wRes.ok) {
                     const wText = await wRes.text();
-                    // 核心修改：只按换行符(\n 或 \r\n)进行分割，一行一个单词
-                    const rawWords = wText.split(/\r?\n/).map(w => w.trim()).filter(w => w.length > 0);  
+                    const rawLines = wText.split(/\r?\n/).map(w => w.trim()).filter(w => w.length > 0);  
                     
-                    wordList = rawWords.map(item => {
-                        const parts = item.split(/\||:|：/);
-                        if (parts.length > 1) {
-                            return { en: parts[0].trim(), zh: parts[1].trim() };
-                        } else {
-                            return { en: parts[0].trim(), zh: "暂无中文释义" };
-                        }
-                    });
+                    wordList =[];
+                    // 每次循环跳 2 步，读取 单词行 和 例句行
+                    for (let i = 0; i < rawLines.length; i += 2) {
+                        const wordLine = rawLines[i];
+                        const sentenceLine = (i + 1 < rawLines.length) ? rawLines[i+1] : "暂无例句。";
+                        
+                        const parts = wordLine.split(/\||:|：/);
+                        wordList.push({
+                            en: parts[0].trim(),
+                            zh: parts.length > 1 ? parts[1].trim() : "暂无中文释义",
+                            ex: sentenceLine
+                        });
+                    }
                 }
             } catch (e) { console.log("单词库未找到"); }
-            if (wordList.length > 0) updateWordDisplay();
+            
+            if (wordList.length > 0) {
+                initGroupSelect();
+                updateWordDisplay();
+            }
 
             // 2. 加载 Texts.txt
             try {
@@ -178,22 +200,63 @@
                     articleList = aText.split(/---|(?:\r?\n){2,}/).map(a => a.trim()).filter(a => a.length > 0);
                 }
             } catch (e) { console.log("文章库未找到"); }
+            if (articleList.length > 0) { initArticleSelect(); updateArticleDisplay(); }
+        }
+
+        // ================= 分组逻辑与计算 =================
+        function initGroupSelect() {
+            const select = document.getElementById('groupSelect');
+            select.innerHTML = `<option value="all">📚 整体练习 (共 ${wordList.length} 词)</option>`;
             
-            if (articleList.length > 0) {
-                initArticleSelect();
-                updateArticleDisplay();
+            // 每 10 个词为一组计算分组总数
+            const groupCount = Math.ceil(wordList.length / 10);
+            for (let i = 0; i < groupCount; i++) {
+                const start = i * 10 + 1;
+                const end = Math.min((i + 1) * 10, wordList.length);
+                let option = document.createElement('option');
+                option.value = i;
+                option.text = `📦 第 ${i + 1} 组 (词汇 ${start} - ${end})`;
+                select.appendChild(option);
             }
         }
 
-        // ================= 单词练习逻辑 =================
-        function updateWordDisplay() {
-            document.getElementById('targetWord').innerText = wordList[currentWordIndex].en;
-            document.getElementById('wordCounter').innerText = `${currentWordIndex + 1} / ${wordList.length}`;
-            
-            const meaningEl = document.getElementById('chineseMeaning');
-            meaningEl.innerText = wordList[currentWordIndex].zh;
-            meaningEl.style.display = 'none';
+        // 获取当前所选模式的 起点、终点和总数
+        function getGroupBounds() {
+            const val = document.getElementById('groupSelect').value;
+            if (val === 'all') {
+                return { start: 0, end: wordList.length - 1, total: wordList.length };
+            } else {
+                const gIdx = parseInt(val);
+                const start = gIdx * 10;
+                const end = Math.min(start + 9, wordList.length - 1);
+                return { start, end, total: end - start + 1 };
+            }
+        }
 
+        // 切换下拉菜单时触发
+        function changeGroup() {
+            const bounds = getGroupBounds();
+            currentWordIndex = bounds.start; // 切换分组时，强制回到该组第一个词
+            updateWordDisplay();
+        }
+
+        // ================= 单词练习视图逻辑 =================
+        function updateWordDisplay() {
+            const bounds = getGroupBounds();
+            // 计算当前词在“当前组”里是第几个 (相对序号)
+            const relativeIndex = currentWordIndex - bounds.start + 1;
+            
+            document.getElementById('targetWord').innerText = wordList[currentWordIndex].en;
+            document.getElementById('wordCounter').innerText = `${relativeIndex} / ${bounds.total}`;
+            
+            // 隐藏中文和例句
+            document.getElementById('chineseMeaning').style.display = 'none';
+            document.getElementById('chineseMeaning').innerText = wordList[currentWordIndex].zh;
+            
+            document.getElementById('exampleSentence').style.display = 'none';
+            document.getElementById('exampleSentence').innerText = wordList[currentWordIndex].ex;
+
+            // 清理听写记录
             document.getElementById('wordResult').innerText = ""; 
             document.getElementById('dictationInput').value = ""; 
             document.getElementById('dictationResult').innerText = "";
@@ -201,20 +264,38 @@
         }
 
         function toggleMeaning() {
-            const meaningEl = document.getElementById('chineseMeaning');
-            meaningEl.style.display = meaningEl.style.display === 'none' ? 'block' : 'none';
+            const el = document.getElementById('chineseMeaning');
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function showAndPlayExample() {
+            const exEl = document.getElementById('exampleSentence');
+            exEl.style.display = 'block'; // 每次点击都确保它是显示的
+
+            // 朗读例句
+            const sentence = wordList[currentWordIndex].ex;
+            if (sentence !== "暂无例句。") {
+                const utterance = new SpeechSynthesisUtterance(sentence);
+                utterance.lang = 'en-US'; 
+                window.speechSynthesis.speak(utterance);
+            }
         }
 
         function nextWord() {
             if (wordList.length === 0) return;
-            currentWordIndex = (currentWordIndex + 1) % wordList.length; 
+            const bounds = getGroupBounds();
+            currentWordIndex++;
+            // 如果超出了当前分组的结尾，就回到当前分组的开头 (形成闭环)
+            if (currentWordIndex > bounds.end) {
+                currentWordIndex = bounds.start;
+            }
             updateWordDisplay();
         }
 
-        // 新增：从头开始功能
         function restartWords() {
             if (wordList.length === 0) return;
-            currentWordIndex = 0; // 进度归零
+            const bounds = getGroupBounds();
+            currentWordIndex = bounds.start; // 智能归零到本组开头
             updateWordDisplay();
         }
 
@@ -290,15 +371,10 @@
             document.getElementById('diffResult').style.display = 'none'; 
         }
 
-        // 核心修改：朗读文章时读取语速设置
         function speakArticle() {
             const utterance = new SpeechSynthesisUtterance(articleList[currentArticleIndex]);
             utterance.lang = 'en-US'; 
-            
-            // 获取用户选择的语速
-            const speed = parseFloat(document.getElementById('speedSelect').value);
-            utterance.rate = speed; 
-            
+            utterance.rate = parseFloat(document.getElementById('speedSelect').value); 
             window.speechSynthesis.speak(utterance);
         }
 
