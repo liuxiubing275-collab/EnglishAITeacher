@@ -41,7 +41,7 @@
         .incorrect-item { color: #e74c3c; border-left: 5px solid #e74c3c;}
         .score-display { text-align: center; font-size: 28px; font-weight: bold; margin: 15px 0; }
 
-        /* ================= 新增：聊天界面样式 ================= */
+        /* ================= 互动聊天样式 ================= */
         .chat-container { display: flex; flex-direction: column; height: 500px; background: #e5e5ea; border-radius: 12px; overflow: hidden; margin-top: 15px;}
         .chat-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
         .chat-bubble { max-width: 80%; padding: 12px 16px; border-radius: 20px; font-size: 16px; line-height: 1.5; word-wrap: break-word;}
@@ -67,7 +67,6 @@
 
     <!-- ================= 页面 1：单词练习 (保持原样) ================= -->
     <div id="page-words" class="page-section">
-        <!-- 为了节约篇幅，这部分代码完全保留你上一个版本的，不作改动 -->
         <div class="card" style="border: 2px solid #3498db;">
             <h2>🗣️ 单词发音与跟读 <span id="wordCounter" style="font-size: 14px; color: #8e8e93; font-weight: normal;">1/1</span></h2>
             <select id="groupSelect" onchange="changeGroup()" style="font-weight: bold; color: #2980b9; border: 2px solid #3498db;"><option value="all">📚 整体练习 (加载中...)</option></select>
@@ -105,7 +104,6 @@
 
     <!-- ================= 页面 2：文章跟读 (保持原样) ================= -->
     <div id="page-articles" class="page-section">
-        <!-- 同样保留你的代码 -->
         <div class="card">
             <h2>📖 智能文章跟读 <select id="articleSelect" onchange="changeArticle()" style="width: auto; padding: 5px; margin: 0; font-size: 14px;"><option value="0">加载中...</option></select></h2>
             <div class="row-buttons"><select id="speedSelect" style="width: 100%; padding: 12px; margin-top: 10px; border-radius: 12px; font-size: 15px; font-weight: bold; color: #2c3e50; border: 2px solid #8e44ad;"><option value="0.5">🐢 0.5x</option><option value="1" selected>🏃 1.0x 正常</option><option value="1.5">🚀 1.5x</option></select></div>
@@ -130,7 +128,7 @@
         </div>
     </div>
 
-    <!-- ================= 页面 3：核心升级 - 互动聊天 ================= -->
+    <!-- ================= 页面 3：核心优化 - 互动聊天 ================= -->
     <div id="page-chat" class="page-section active">
         <div class="card" style="padding-bottom: 10px;">
             <h2>🤖 AI 英语角设置</h2>
@@ -140,15 +138,13 @@
         </div>
 
         <div class="chat-container">
-            <!-- 聊天记录区 -->
             <div id="chatLog" class="chat-box">
                 <div class="chat-bubble bubble-ai">
-                    Hello! I am your AI English teacher. Let's practice English together. What do you want to talk about today?<br><br>
-                    <span style="font-size: 12px; color: #8e8e93;">(你可以打字，或者按麦克风按钮直接用英语跟我说话！)</span>
+                    Hi! I am your AI English friend. What do you want to talk about today?<br><br>
+                    <span style="font-size: 12px; color: #8e8e93;">(像朋友一样随便跟我聊！只有你犯了明显的语法错误，我才会偷偷在屏幕上指出哦。)</span>
                 </div>
             </div>
             
-            <!-- 输入区 -->
             <div class="chat-input-area">
                 <button class="btn-mic" onclick="startChatVoice()">🎤</button>
                 <input type="text" id="chatMsgInput" placeholder="输入英语与 AI 对话..." autocomplete="off" onkeypress="if(event.key === 'Enter') sendChatMessage()">
@@ -166,35 +162,35 @@
             document.getElementById('btn-' + tabName).classList.add('active');
         }
 
-        // --- 单词和文章的旧逻辑保持在后台，此处折叠隐藏以防干扰，直接拷贝你上个版本的相应JS代码即可 ---
-        // 为了确保程序直接可用，我注入空函数占位，你需要合并上面的词汇文章代码
+        // --- 单词和文章的旧逻辑保持在后台，空函数占位防报错 ---
         function loadAllData() {} function changeGroup() {} function toggleBlur() {} function readTargetWord() {} function startListeningForWord() {} function toggleMeaning() {} function showAndPlayExample() {} function restartWords() {} function nextWord() {} function startGroupTest() {} function checkDictation() {} function playTestWord() {} function submitTestWord() {} function quitGroupTest() {} function changeArticle() {} function speakArticle() {} function startListeningForArticle() {} function nextArticle() {} function startArticleDictation() {} function playCurrentSentence() {} function checkArticleDictation() {} function nextDictationSentence() {} function quitArticleDictation() {}
 
         // =========================================================================
-        // ======================= 核心升级：AI 互动聊天逻辑 =======================
+        // ======================= 核心优化：AI 互动聊天逻辑 =======================
         // =========================================================================
         
-        // 1. 初始化对话记忆数组 (包含强力纠错 Prompt)
-        const systemPrompt = `你是一个非常专业、友善的英语口语老师。用户正在练习英语。
-规则要求：
-1. 用户的每一句话，你都必须检查语法、拼写或表达是否自然。
-2. 你的回复必须严格按照以下格式分为两部分：
+        // 1. 全新优化的系统提示词 (采用 Few-Shot 示例引导，大幅提升聊天的自然度)
+        const systemPrompt = `你是一位友好的英语母语者，正在和用户进行轻松的日常聊天。
+你的【首要任务】是：用自然、地道的英语回答用户的问题，推进对话，就像朋友聊天一样。
 
-[纠错] 
-（如果用户有错误，用中文简短指出并给出地道表达。如果用户表达很完美，请直接写：表达得很地道！）
+【纠错规则】（非常重要）：
+1. 只有当用户的英语出现明显的语法错误、或者严重的拼写错误时，你才需要纠错。
+2. 如果用户的英语表达能够让人理解，没有明显错误，**绝对不要**出现纠错内容，直接回答即可。
+3. 如果真的有错误，请**必须**将中文的纠错内容放在 <纠错> 和 </纠错> 标签之间，并且一定要把这个标签放在你回复的最前面。
 
-[回复]
-（用纯正、自然的英语回复用户的话，推动对话继续。字数控制在20-30个单词以内，可以附带一个问题引导用户回答。）`;
+【回复示例 1 - 正常聊天无错误】：
+用户: What is your favorite color?
+AI: My favorite color is blue! It reminds me of the ocean. What about you?
+
+【回复示例 2 - 用户有语法错误】：
+用户: I is very happy today.
+AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 "I am very happy today."</纠错> I am so glad to hear that! Why are you so happy today?`;
 
         let chatHistory =[
             { role: "system", content: systemPrompt }
         ];
 
-        // 2. 页面加载时读取存储的 API Key
         window.onload = function() {
-            // 加载单词和文章数据 (原逻辑)
-            // loadAllData(); 
-            
             const savedKey = localStorage.getItem('silicon_api_key');
             if (savedKey) {
                 document.getElementById('siliconApiKey').value = savedKey;
@@ -203,7 +199,6 @@
             }
         };
 
-        // 3. 保存 API Key
         function saveApiKey() {
             const key = document.getElementById('siliconApiKey').value.trim();
             if (key.startsWith("sk-")) {
@@ -215,7 +210,6 @@
             }
         }
 
-        // 4. 发送消息逻辑
         async function sendChatMessage(overrideText = null) {
             const inputEl = document.getElementById('chatMsgInput');
             const userText = overrideText || inputEl.value.trim();
@@ -228,19 +222,15 @@
                 return;
             }
 
-            // A. 在界面上显示用户的气泡
             appendChatBubble(userText, 'user');
-            inputEl.value = ''; // 清空输入框
-            inputEl.blur(); // 收起键盘
+            inputEl.value = ''; 
+            inputEl.blur(); 
 
-            // B. 把用户的消息加入记忆
             chatHistory.push({ role: "user", content: userText });
 
-            // C. 显示 "AI 正在思考..." 的动画提示
             const loadingId = appendChatBubble("⏳ 正在思考...", 'ai');
 
             try {
-                // D. 调用 SiliconCloud API
                 const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
                     method: 'POST',
                     headers: {
@@ -248,9 +238,9 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model: 'Qwen/Qwen2.5-7B-Instruct', // 使用免费极速的 Qwen 模型
+                        model: 'Qwen/Qwen2.5-7B-Instruct', 
                         messages: chatHistory,
-                        max_tokens: 200,
+                        max_tokens: 250,
                         temperature: 0.7
                     })
                 });
@@ -262,51 +252,53 @@
                 const data = await response.json();
                 const aiRawText = data.choices[0].message.content;
 
-                // E. 将 AI 的回复加入记忆
                 chatHistory.push({ role: "assistant", content: aiRawText });
 
-                // F. 解析 AI 的回复内容 (切分纠错和英文回复)
                 renderAndSpeakAiResponse(aiRawText, loadingId);
 
             } catch (error) {
                 console.error(error);
                 updateChatBubble(loadingId, "⚠️ 发生错误，请检查网络或 API Key 是否正确。");
-                chatHistory.pop(); // 发生错误时，把刚刚用户的提问移出记忆，避免死锁
+                chatHistory.pop(); 
             }
         }
 
-        // 5. 渲染 AI 回复并朗读
+        // 全新解析引擎：用正则表达式精准提取 <纠错> 标签里的内容
         function renderAndSpeakAiResponse(rawText, bubbleId) {
             let correctionText = "";
             let replyText = rawText;
 
-            // 智能切割：寻找 [纠错] 和 [回复] 标记
-            if (rawText.includes("[纠错]") && rawText.includes("[回复]")) {
-                const parts = rawText.split("[回复]");
-                correctionText = parts[0].replace("[纠错]", "").trim();
-                replyText = parts[1].trim();
+            // 用正则匹配 <纠错> 和 </纠错> 之间的所有内容
+            const correctionMatch = rawText.match(/<纠错>([\s\S]*?)<\/纠错>/);
+            
+            if (correctionMatch) {
+                correctionText = correctionMatch[1].trim(); // 提取出纠错内容
+                // 把带有标签的纠错内容从原文中删掉，剩下的就是纯英文聊天回复
+                replyText = rawText.replace(/<纠错>[\s\S]*?<\/纠错>/, '').trim();
             }
 
             // 更新界面的气泡
             let htmlContent = "";
             if (correctionText) {
-                htmlContent += `<div class="chat-correction"><strong>💡 老师指导:</strong><br>${correctionText}</div>`;
+                htmlContent += `<div class="chat-correction"><strong>💡 语法小贴士:</strong><br>${correctionText}</div>`;
             }
             htmlContent += `<div class="chat-reply">${replyText}</div>`;
             
             updateChatBubble(bubbleId, htmlContent);
 
-            // 【核心】：只朗读纯英文的回复部分，忽略中文纠错！
+            // 语音朗读纯英文部分
             if (replyText) {
-                const englishOnly = replyText.replace(/[^\x00-\xff]/g, '').trim(); // 去除中文字符
-                const utterance = new SpeechSynthesisUtterance(englishOnly);
-                utterance.lang = 'en-US';
-                utterance.rate = 0.9; // 聊天语速稍慢一点，清晰
-                window.speechSynthesis.speak(utterance);
+                // 为了保险，再做一次非英文字符过滤，确保完全没有中文被念出来
+                const englishOnly = replyText.replace(/[^\x00-\xff]/g, '').trim(); 
+                if(englishOnly.length > 0) {
+                    const utterance = new SpeechSynthesisUtterance(englishOnly);
+                    utterance.lang = 'en-US';
+                    utterance.rate = 0.95; 
+                    window.speechSynthesis.speak(utterance);
+                }
             }
         }
 
-        // 6. 语音输入逻辑
         function startChatVoice() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) return alert("请在 iPhone 自带的 Safari 浏览器中使用语音功能。");
@@ -323,7 +315,6 @@
                 const transcript = event.results[0][0].transcript;
                 inputEl.value = transcript;
                 inputEl.placeholder = "输入英语与 AI 对话...";
-                // 语音识别完毕后，自动发送
                 sendChatMessage(transcript);
             };
             
@@ -333,7 +324,6 @@
             };
         }
 
-        // 7. 气泡 UI 辅助函数
         function appendChatBubble(text, sender) {
             const chatLog = document.getElementById('chatLog');
             const bubbleId = "msg-" + Date.now();
@@ -341,11 +331,9 @@
             const bubbleDiv = document.createElement('div');
             bubbleDiv.className = `chat-bubble bubble-${sender}`;
             bubbleDiv.id = bubbleId;
-            bubbleDiv.innerHTML = text; // 支持内部加 HTML (针对AI回复)
+            bubbleDiv.innerHTML = text; 
             
             chatLog.appendChild(bubbleDiv);
-            
-            // 自动滚动到最底部
             chatLog.scrollTop = chatLog.scrollHeight;
             
             return bubbleId;
