@@ -52,7 +52,8 @@
         .btn-send, .btn-mic { background: #007aff; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; font-size: 18px; cursor: pointer;}
         .btn-mic { background: #e67e22; }
         .chat-correction { font-size: 13px; color: #e74c3c; background: #fdf2f0; padding: 8px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid #e74c3c; }
-        .chat-reply { font-weight: bold; }
+        .chat-reply { font-weight: bold; position: relative; }
+        .btn-play-reply { background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 0 0 5px; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -128,7 +129,7 @@
         </div>
     </div>
 
-    <!-- ================= 页面 3：核心优化 - 互动聊天 ================= -->
+    <!-- ================= 页面 3：互动聊天 ================= -->
     <div id="page-chat" class="page-section active">
         <div class="card" style="padding-bottom: 10px;">
             <h2>🤖 AI 英语角设置</h2>
@@ -166,10 +167,9 @@
         function loadAllData() {} function changeGroup() {} function toggleBlur() {} function readTargetWord() {} function startListeningForWord() {} function toggleMeaning() {} function showAndPlayExample() {} function restartWords() {} function nextWord() {} function startGroupTest() {} function checkDictation() {} function playTestWord() {} function submitTestWord() {} function quitGroupTest() {} function changeArticle() {} function speakArticle() {} function startListeningForArticle() {} function nextArticle() {} function startArticleDictation() {} function playCurrentSentence() {} function checkArticleDictation() {} function nextDictationSentence() {} function quitArticleDictation() {}
 
         // =========================================================================
-        // ======================= 核心优化：AI 互动聊天逻辑 =======================
+        // ======================= AI 互动聊天逻辑 (带自动语音修复) =======================
         // =========================================================================
         
-        // 1. 全新优化的系统提示词 (采用 Few-Shot 示例引导，大幅提升聊天的自然度)
         const systemPrompt = `你是一位友好的英语母语者，正在和用户进行轻松的日常聊天。
 你的【首要任务】是：用自然、地道的英语回答用户的问题，推进对话，就像朋友聊天一样。
 
@@ -210,6 +210,16 @@ AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 
             }
         }
 
+        // --- 全局播放函数 ---
+        window.playAiSpeech = function(encodedText) {
+            const text = decodeURIComponent(encodedText);
+            window.speechSynthesis.cancel(); // 切断之前的声音
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.95; 
+            window.speechSynthesis.speak(utterance);
+        };
+
         async function sendChatMessage(overrideText = null) {
             const inputEl = document.getElementById('chatMsgInput');
             const userText = overrideText || inputEl.value.trim();
@@ -221,6 +231,11 @@ AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 
                 alert("请先在上方输入并保存硅基流动的 API Key！");
                 return;
             }
+
+            // 【关键修复1：静音解锁】在用户点击发送/按回车的瞬间，立刻触发一次空发音
+            // 这会“唤醒”苹果的音频引擎，获取后台发声权限，防止之后因为网络延迟被系统拦截
+            let unlockUtterance = new SpeechSynthesisUtterance('');
+            window.speechSynthesis.speak(unlockUtterance);
 
             appendChatBubble(userText, 'user');
             inputEl.value = ''; 
@@ -263,39 +278,40 @@ AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 
             }
         }
 
-        // 全新解析引擎：用正则表达式精准提取 <纠错> 标签里的内容
         function renderAndSpeakAiResponse(rawText, bubbleId) {
             let correctionText = "";
             let replyText = rawText;
 
-            // 用正则匹配 <纠错> 和 </纠错> 之间的所有内容
             const correctionMatch = rawText.match(/<纠错>([\s\S]*?)<\/纠错>/);
             
             if (correctionMatch) {
-                correctionText = correctionMatch[1].trim(); // 提取出纠错内容
-                // 把带有标签的纠错内容从原文中删掉，剩下的就是纯英文聊天回复
+                correctionText = correctionMatch[1].trim(); 
                 replyText = rawText.replace(/<纠错>[\s\S]*?<\/纠错>/, '').trim();
             }
 
-            // 更新界面的气泡
+            // 【关键修复2：更柔和的过滤】只过滤汉字，保留原汁原味的英文标点符号 (如 I'm 不会变成 Im)
+            const englishOnly = replyText.replace(/[\u4e00-\u9fa5]/g, '').trim(); 
+
+            // 【关键修复3：增加喇叭按钮】在气泡旁边附带一个播放按键
             let htmlContent = "";
             if (correctionText) {
                 htmlContent += `<div class="chat-correction"><strong>💡 语法小贴士:</strong><br>${correctionText}</div>`;
             }
-            htmlContent += `<div class="chat-reply">${replyText}</div>`;
+            
+            // 使用 encodeURIComponent 确保文本传参时不会因为有引号等标点导致代码报错
+            const safeText = encodeURIComponent(englishOnly);
+            htmlContent += `
+                <div class="chat-reply">
+                    ${replyText}
+                    <button class="btn-play-reply" onclick="playAiSpeech('${safeText}')">🔊</button>
+                </div>
+            `;
             
             updateChatBubble(bubbleId, htmlContent);
 
-            // 语音朗读纯英文部分
-            if (replyText) {
-                // 为了保险，再做一次非英文字符过滤，确保完全没有中文被念出来
-                const englishOnly = replyText.replace(/[^\x00-\xff]/g, '').trim(); 
-                if(englishOnly.length > 0) {
-                    const utterance = new SpeechSynthesisUtterance(englishOnly);
-                    utterance.lang = 'en-US';
-                    utterance.rate = 0.95; 
-                    window.speechSynthesis.speak(utterance);
-                }
+            // 自动播放
+            if (englishOnly.length > 0) {
+                window.playAiSpeech(safeText);
             }
         }
 
@@ -315,7 +331,7 @@ AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 
                 const transcript = event.results[0][0].transcript;
                 inputEl.value = transcript;
                 inputEl.placeholder = "输入英语与 AI 对话...";
-                sendChatMessage(transcript);
+                sendChatMessage(transcript); // 录音结束自动发送
             };
             
             recognition.onerror = function(event) {
