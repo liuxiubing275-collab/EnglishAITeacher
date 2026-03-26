@@ -41,8 +41,8 @@
         .incorrect-item { color: #e74c3c; border-left: 5px solid #e74c3c;}
         .score-display { text-align: center; font-size: 28px; font-weight: bold; margin: 15px 0; }
 
-        /* ================= 互动聊天样式 ================= */
-        .chat-container { display: flex; flex-direction: column; height: 500px; background: #e5e5ea; border-radius: 12px; overflow: hidden; margin-top: 15px;}
+        /* 聊天专属样式 */
+        .chat-container { display: flex; flex-direction: column; height: 550px; background: #e5e5ea; border-radius: 12px; overflow: hidden; margin-top: 15px;}
         .chat-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
         .chat-bubble { max-width: 80%; padding: 12px 16px; border-radius: 20px; font-size: 16px; line-height: 1.5; word-wrap: break-word;}
         .bubble-user { align-self: flex-end; background-color: #007aff; color: white; border-bottom-right-radius: 4px;}
@@ -53,7 +53,10 @@
         .btn-mic { background: #e67e22; }
         .chat-correction { font-size: 13px; color: #e74c3c; background: #fdf2f0; padding: 8px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid #e74c3c; }
         .chat-reply { font-weight: bold; position: relative; }
-        .btn-play-reply { background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 0 0 5px; vertical-align: middle; }
+        .btn-play-reply { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0 0 0 8px; vertical-align: middle; color: #8e44ad; }
+        
+        /* 设置区隐藏与显示 */
+        #settingsCard { display: block; animation: fadeIn 0.3s ease; }
     </style>
 </head>
 <body>
@@ -61,13 +64,13 @@
     <h1>🚀 AI 英语私教</h1>
 
     <div class="nav-bar">
-        <button id="btn-words" class="nav-btn" onclick="switchTab('words')">单词练习</button>
+        <button id="btn-words" class="nav-btn active" onclick="switchTab('words')">单词练习</button>
         <button id="btn-articles" class="nav-btn" onclick="switchTab('articles')">文章跟读</button>
-        <button id="btn-chat" class="nav-btn active" onclick="switchTab('chat')">互动聊天</button>
+        <button id="btn-chat" class="nav-btn" onclick="switchTab('chat')">互动聊天</button>
     </div>
 
-    <!-- ================= 页面 1：单词练习 (保持原样) ================= -->
-    <div id="page-words" class="page-section">
+    <!-- ================= 页面 1：单词练习 ================= -->
+    <div id="page-words" class="page-section active">
         <div class="card" style="border: 2px solid #3498db;">
             <h2>🗣️ 单词发音与跟读 <span id="wordCounter" style="font-size: 14px; color: #8e8e93; font-weight: normal;">1/1</span></h2>
             <select id="groupSelect" onchange="changeGroup()" style="font-weight: bold; color: #2980b9; border: 2px solid #3498db;"><option value="all">📚 整体练习 (加载中...)</option></select>
@@ -103,7 +106,7 @@
         </div>
     </div>
 
-    <!-- ================= 页面 2：文章跟读 (保持原样) ================= -->
+    <!-- ================= 页面 2：文章跟读 ================= -->
     <div id="page-articles" class="page-section">
         <div class="card">
             <h2>📖 智能文章跟读 <select id="articleSelect" onchange="changeArticle()" style="width: auto; padding: 5px; margin: 0; font-size: 14px;"><option value="0">加载中...</option></select></h2>
@@ -129,13 +132,19 @@
         </div>
     </div>
 
-    <!-- ================= 页面 3：互动聊天 ================= -->
-    <div id="page-chat" class="page-section active">
-        <div class="card" style="padding-bottom: 10px;">
+    <!-- ================= 页面 3：互动聊天 (新增设置折叠) ================= -->
+    <div id="page-chat" class="page-section">
+        
+        <!-- API 设置折叠区 -->
+        <div style="text-align: right; margin-bottom: -10px; padding-right: 5px;">
+            <button onclick="toggleSettings()" style="background: transparent; border: none; font-size: 16px; color: #3498db; cursor: pointer; font-weight: bold;">⚙️ 展开/收起设置</button>
+        </div>
+        
+        <div class="card" id="settingsCard" style="padding-bottom: 10px; border: 2px dashed #bdc3c7; margin-top: 15px;">
             <h2>🤖 AI 英语角设置</h2>
-            <input type="password" id="siliconApiKey" placeholder="在此输入硅基流动 API Key (sk-...)" value="">
-            <button class="action-btn" onclick="saveApiKey()" style="background-color: #2c3e50; margin-top: 10px;">💾 保存 Key 并开始聊天</button>
-            <p id="apiKeyStatus" style="font-size: 12px; color: #7f8c8d; text-align: center; margin-top: 10px;">API Key 仅保存在你的手机浏览器本地，非常安全。</p>
+            <input type="password" id="siliconApiKey" placeholder="在此输入 API Key (sk-...)" value="">
+            <button class="action-btn" onclick="saveApiKey()" style="background-color: #2c3e50; margin-top: 10px;">💾 保存 Key</button>
+            <p id="apiKeyStatus" style="font-size: 12px; color: #7f8c8d; text-align: center; margin-top: 10px;">API Key 仅保存在你的手机本地，非常安全。</p>
         </div>
 
         <div class="chat-container">
@@ -145,7 +154,6 @@
                     <span style="font-size: 12px; color: #8e8e93;">(像朋友一样随便跟我聊！只有你犯了明显的语法错误，我才会偷偷在屏幕上指出哦。)</span>
                 </div>
             </div>
-            
             <div class="chat-input-area">
                 <button class="btn-mic" onclick="startChatVoice()">🎤</button>
                 <input type="text" id="chatMsgInput" placeholder="输入英语与 AI 对话..." autocomplete="off" onkeypress="if(event.key === 'Enter') sendChatMessage()">
@@ -155,7 +163,9 @@
     </div>
 
     <script>
-        // ================= 导航切换 =================
+        // ================= 全局 & 导航 =================
+        let activeUtterance = null; // 保护语音不被手机清理
+        
         function switchTab(tabName) {
             document.querySelectorAll('.page-section').forEach(page => page.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -163,11 +173,233 @@
             document.getElementById('btn-' + tabName).classList.add('active');
         }
 
-        // --- 单词和文章的旧逻辑保持在后台，空函数占位防报错 ---
-        function loadAllData() {} function changeGroup() {} function toggleBlur() {} function readTargetWord() {} function startListeningForWord() {} function toggleMeaning() {} function showAndPlayExample() {} function restartWords() {} function nextWord() {} function startGroupTest() {} function checkDictation() {} function playTestWord() {} function submitTestWord() {} function quitGroupTest() {} function changeArticle() {} function speakArticle() {} function startListeningForArticle() {} function nextArticle() {} function startArticleDictation() {} function playCurrentSentence() {} function checkArticleDictation() {} function nextDictationSentence() {} function quitArticleDictation() {}
+        // ================== 完全恢复：加载与单词文章逻辑 ==================
+        let wordList =[{ en: "Apple", zh: "苹果(示例)", ex: "An apple a day." }]; 
+        let currentWordIndex = 0; 
+        let articleList =["请建立 Texts.txt 和 NewWords.txt 测试文件"];
+        let currentArticleIndex = 0;
+
+        window.onload = function() {
+            // 1. 加载本地数据
+            loadAllData();
+            
+            // 2. 检查 API Key，如果有就自动隐藏设置面板
+            const savedKey = localStorage.getItem('silicon_api_key');
+            if (savedKey) {
+                document.getElementById('siliconApiKey').value = savedKey;
+                document.getElementById('apiKeyStatus').innerText = "✅ API Key 已读取";
+                document.getElementById('apiKeyStatus').style.color = "#27ae60";
+                document.getElementById('settingsCard').style.display = 'none'; // 自动隐藏
+            }
+        };
+
+        // 核心：折叠开关功能
+        function toggleSettings() {
+            const card = document.getElementById('settingsCard');
+            card.style.display = (card.style.display === 'none') ? 'block' : 'none';
+        }
+
+        async function loadAllData() {
+            try {
+                const wRes = await fetch('NewWords.txt');
+                if (wRes.ok) {
+                    const wText = await wRes.text();
+                    const rawLines = wText.split(/\r?\n/).map(w => w.trim()).filter(w => w.length > 0);  
+                    wordList =[];
+                    for (let i = 0; i < rawLines.length; i += 2) {
+                        const wordLine = rawLines[i];
+                        const sentenceLine = (i + 1 < rawLines.length) ? rawLines[i+1] : "暂无例句。";
+                        const parts = wordLine.split(/\||:|：/);
+                        wordList.push({
+                            en: parts[0].trim(),
+                            zh: parts.length > 1 ? parts[1].trim() : "暂无中文释义",
+                            ex: sentenceLine
+                        });
+                    }
+                }
+            } catch (e) { console.log("单词库未找到"); }
+            if (wordList.length > 0) { initGroupSelect(); updateWordDisplay(); }
+
+            try {
+                const aRes = await fetch('Texts.txt');
+                if (aRes.ok) {
+                    const aText = await aRes.text();
+                    articleList = aText.split(/---|(?:\r?\n){2,}/).map(a => a.trim()).filter(a => a.length > 0);
+                }
+            } catch (e) { console.log("文章库未找到"); }
+            if (articleList.length > 0) { initArticleSelect(); updateArticleDisplay(); }
+        }
+
+        // --- 单词功能 ---
+        function initGroupSelect() {
+            const select = document.getElementById('groupSelect'); select.innerHTML = `<option value="all">📚 整体练习 (共 ${wordList.length} 词)</option>`;
+            const groupCount = Math.ceil(wordList.length / 10);
+            for (let i = 0; i < groupCount; i++) {
+                const start = i * 10 + 1; const end = Math.min((i + 1) * 10, wordList.length);
+                let option = document.createElement('option'); option.value = i; option.text = `📦 第 ${i + 1} 组 (词汇 ${start} - ${end})`;
+                select.appendChild(option);
+            }
+        }
+        function getGroupBounds() {
+            const val = document.getElementById('groupSelect').value;
+            if (val === 'all') return { start: 0, end: wordList.length - 1, total: wordList.length };
+            const start = parseInt(val) * 10; return { start, end: Math.min(start + 9, wordList.length - 1), total: Math.min(start + 9, wordList.length - 1) - start + 1 };
+        }
+        function changeGroup() { currentWordIndex = getGroupBounds().start; updateWordDisplay(); }
+        function updateWordDisplay() {
+            const bounds = getGroupBounds();
+            document.getElementById('targetWord').innerText = wordList[currentWordIndex].en;
+            document.getElementById('wordCounter').innerText = `${currentWordIndex - bounds.start + 1} / ${bounds.total}`;
+            document.getElementById('chineseMeaning').style.display = 'none'; document.getElementById('chineseMeaning').innerText = wordList[currentWordIndex].zh;
+            document.getElementById('exampleSentence').style.display = 'none'; document.getElementById('exampleSentence').innerText = wordList[currentWordIndex].ex;
+            document.getElementById('wordResult').innerText = ""; document.getElementById('dictationInput').value = ""; document.getElementById('dictationResult').innerText = "";
+            document.getElementById('targetWord').style.filter = 'none';
+        }
+        function toggleMeaning() { const el = document.getElementById('chineseMeaning'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
+        function showAndPlayExample() {
+            document.getElementById('exampleSentence').style.display = 'block'; 
+            const fullSentence = wordList[currentWordIndex].ex;
+            if (fullSentence !== "暂无例句。") {
+                const englishPart = fullSentence.replace(/[^\x00-\xff]/g, '').trim();
+                if (englishPart.length > 0) {
+                    activeUtterance = new SpeechSynthesisUtterance(englishPart);
+                    activeUtterance.lang = 'en-US'; window.speechSynthesis.speak(activeUtterance);
+                }
+            }
+        }
+        function nextWord() { if (wordList.length === 0) return; const bounds = getGroupBounds(); currentWordIndex++; if (currentWordIndex > bounds.end) currentWordIndex = bounds.start; updateWordDisplay(); }
+        function restartWords() { if (wordList.length === 0) return; currentWordIndex = getGroupBounds().start; updateWordDisplay(); }
+        function toggleBlur() { const wordEl = document.getElementById('targetWord'); wordEl.style.filter = wordEl.style.filter === 'blur(8px)' ? 'none' : 'blur(8px)'; }
+        function readTargetWord() {
+            document.getElementById('targetWord').style.filter = 'blur(8px)';
+            activeUtterance = new SpeechSynthesisUtterance(wordList[currentWordIndex].en); activeUtterance.lang = 'en-US'; window.speechSynthesis.speak(activeUtterance);
+            setTimeout(() => { document.getElementById('dictationInput').focus(); }, 100);
+        }
+        function startListeningForWord() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return alert("请在 Safari 中使用。");
+            const recognition = new SpeechRecognition(); recognition.lang = 'en-US'; 
+            document.getElementById('wordResult').style.color = "#333"; document.getElementById('wordResult').innerText = "正在聆听...";
+            recognition.start();
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript.toLowerCase().replace(/[.,!?]/g, '').trim();
+                const target = wordList[currentWordIndex].en.toLowerCase().trim();
+                const resultEl = document.getElementById('wordResult');
+                if (transcript === target) { resultEl.style.color = "#27ae60"; resultEl.innerHTML = `✅ 完美！读作: "${transcript}"`; } 
+                else { resultEl.style.color = "#e74c3c"; resultEl.innerHTML = `❌ 差一点，读作: "${transcript}"`; }
+            };
+        }
+        function checkDictation() {
+            const userInput = document.getElementById('dictationInput').value.toLowerCase().trim(); const targetWord = wordList[currentWordIndex].en.toLowerCase().trim(); const resultEl = document.getElementById('dictationResult');
+            if (userInput === "") return resultEl.innerText = "⚠️ 请输入单词！";
+            if (userInput === targetWord) {
+                resultEl.style.color = "#27ae60"; resultEl.innerHTML = `✅ 完全正确！`;
+                document.getElementById('targetWord').style.filter = 'none'; document.getElementById('dictationInput').blur(); 
+                setTimeout(() => { nextWord(); }, 1500);
+            } else { resultEl.style.color = "#e74c3c"; resultEl.innerHTML = `❌ 拼写错误。`; }
+        }
+
+        // --- 单词连续测验 ---
+        let groupTestBounds = null; let groupTestAnswers =[]; let groupTestCurrentIndex = 0;
+        function startGroupTest() {
+            if (wordList.length === 0) return;
+            groupTestBounds = getGroupBounds(); groupTestAnswers =[]; groupTestCurrentIndex = 0;
+            document.getElementById('dictationSingleMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'none'; document.getElementById('dictationGroupMode').style.display = 'block';
+            document.getElementById('groupTestInput').value = '';
+            document.getElementById('groupTestProgress').innerText = `📝 听写测验: 第 ${groupTestCurrentIndex + 1} 词 / 共 ${groupTestBounds.total} 词`;
+            document.getElementById('targetWord').style.filter = 'blur(8px)';
+            setTimeout(() => { playTestWord(); }, 600);
+        }
+        function playTestWord() { activeUtterance = new SpeechSynthesisUtterance(wordList[groupTestBounds.start + groupTestCurrentIndex].en); activeUtterance.lang = 'en-US'; window.speechSynthesis.speak(activeUtterance); setTimeout(() => { document.getElementById('groupTestInput').focus(); }, 100); }
+        function submitTestWord() {
+            const inputEl = document.getElementById('groupTestInput'); groupTestAnswers.push(inputEl.value.trim()); inputEl.value = ''; groupTestCurrentIndex++;
+            if (groupTestCurrentIndex < groupTestBounds.total) { document.getElementById('groupTestProgress').innerText = `📝 听写测验: 第 ${groupTestCurrentIndex + 1} 词 / 共 ${groupTestBounds.total} 词`; setTimeout(() => { playTestWord(); }, 400); } else { showGroupTestResult(); }
+        }
+        function showGroupTestResult() {
+            document.getElementById('dictationGroupMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'block';
+            document.getElementById('targetWord').style.filter = 'none'; 
+            let correctCount = 0; let htmlList = '';
+            for (let i = 0; i < groupTestBounds.total; i++) {
+                let absIndex = groupTestBounds.start + i; let targetWord = wordList[absIndex].en; let userAnswer = groupTestAnswers[i] || "";
+                let isCorrect = (targetWord.toLowerCase().trim() === userAnswer.toLowerCase());
+                if (isCorrect) { correctCount++; htmlList += `<li class="correct-item"><strong>${targetWord}</strong> <span style="float:right; color:#7f8c8d; font-size: 14px;">✅ 正确</span><div style="font-size:13px; color:#7f8c8d; margin-top:4px;">${wordList[absIndex].zh}</div></li>`; } 
+                else { htmlList += `<li class="incorrect-item"><span style="font-size: 14px;">你写了: <s>${userAnswer === "" ? "(留空)" : userAnswer}</s></span><br>正确答案: <strong>${targetWord}</strong><div style="font-size:13px; color:#7f8c8d; margin-top:4px;">${wordList[absIndex].zh}</div></li>`; }
+            }
+            let accuracy = Math.round((correctCount / groupTestBounds.total) * 100);
+            document.getElementById('groupTestScore').innerHTML = `<span style="color: ${accuracy >= 80 ? '#27ae60' : (accuracy >= 60 ? '#f39c12' : '#e74c3c')};">🎯 正确率: ${accuracy}%</span><br><span style="font-size: 16px; color: #7f8c8d;">(写对 ${correctCount} 个 / 共 ${groupTestBounds.total} 个)</span>`;
+            document.getElementById('groupTestResultList').innerHTML = htmlList; document.getElementById('groupTestInput').blur();
+        }
+        function quitGroupTest() { document.getElementById('dictationGroupMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'none'; document.getElementById('dictationSingleMode').style.display = 'block'; document.getElementById('targetWord').style.filter = 'none'; }
+
+        // --- 文章跟读与听写 ---
+        function initArticleSelect() { const select = document.getElementById('articleSelect'); select.innerHTML = ''; articleList.forEach((_, index) => { let option = document.createElement('option'); option.value = index; option.text = `第 ${index + 1} 段`; select.appendChild(option); }); }
+        function changeArticle() { currentArticleIndex = parseInt(document.getElementById('articleSelect').value); updateArticleDisplay(); quitArticleDictation(); }
+        function nextArticle() { if (articleList.length === 0) return; currentArticleIndex = (currentArticleIndex + 1) % articleList.length; document.getElementById('articleSelect').value = currentArticleIndex; updateArticleDisplay(); quitArticleDictation(); }
+        function updateArticleDisplay() { document.getElementById('articleDisplay').innerText = articleList[currentArticleIndex]; document.getElementById('diffResult').style.display = 'none'; document.getElementById('articleDisplay').style.filter = 'none'; }
+        function speakArticle() { activeUtterance = new SpeechSynthesisUtterance(articleList[currentArticleIndex]); activeUtterance.lang = 'en-US'; activeUtterance.rate = parseFloat(document.getElementById('speedSelect').value); window.speechSynthesis.speak(activeUtterance); }
+        function startListeningForArticle() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SpeechRecognition) return;
+            const recognition = new SpeechRecognition(); recognition.lang = 'en-US'; recognition.interimResults = false; 
+            const diffBox = document.getElementById('diffResult'), diffContent = document.getElementById('diffContent'); diffBox.style.display = 'block'; diffBox.style.borderColor = '#e67e22'; diffContent.innerHTML = "🎤 <strong>正在聆听... 读完请停顿</strong>"; recognition.start();
+            recognition.onresult = function(event) { const diffHTML = compareSentences(articleList[currentArticleIndex], event.results[0][0].transcript); diffBox.style.borderColor = '#27ae60'; diffContent.innerHTML = diffHTML; };
+            recognition.onerror = () => { diffBox.style.borderColor = '#e74c3c'; diffContent.innerHTML = "⚠️ 未听到声音。"; };
+        }
+        function compareSentences(original, spoken) {
+            let origWords = original.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/); let spokenWords = spoken.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/); let originalRawWords = original.split(/\s+/); let resultHTML =[], spokenIdx = 0; 
+            for (let i = 0; i < origWords.length; i++) {
+                if(origWords[i] === "") continue; let found = false;
+                for(let j = spokenIdx; j < Math.min(spokenIdx + 3, spokenWords.length); j++) { if (origWords[i] === spokenWords[j]) { found = true; spokenIdx = j + 1; break; } }
+                if (found) resultHTML.push(`<span style="color: #27ae60; font-weight: bold;">${originalRawWords[i]}</span>`); else resultHTML.push(`<span style="color: #e74c3c; text-decoration: line-through;">${originalRawWords[i]}</span>`);
+            } return resultHTML.join(' ');
+        }
+
+        let articleSentences =[]; let currentSentenceIdx = 0; let sentenceReplayTimer = null;
+        function startArticleDictation() {
+            if (articleList.length === 0) return alert("文章库为空！");
+            articleSentences = articleList[currentArticleIndex].match(/[^.!?]+[.!?]+/g) || [articleList[currentArticleIndex]];
+            articleSentences = articleSentences.map(s => s.trim()).filter(s => s.length > 0); currentSentenceIdx = 0;
+            document.getElementById('articleDictationSetup').style.display = 'none'; document.getElementById('articleDictationRunning').style.display = 'block'; document.getElementById('articleDictResult').style.display = 'none'; document.getElementById('btnNextSentence').style.display = 'none'; document.getElementById('articleDictInput').value = '';
+            document.getElementById('articleDisplay').style.filter = 'blur(8px)';
+            updateArticleDictProgress(); setTimeout(() => { playCurrentSentence(); }, 500);
+        }
+        function updateArticleDictProgress() { document.getElementById('articleDictProgress').innerText = `正在听写: 第 ${currentSentenceIdx + 1} 句 / 共 ${articleSentences.length} 句`; }
+        function playCurrentSentence() {
+            clearTimeout(sentenceReplayTimer); window.speechSynthesis.cancel(); const sentence = articleSentences[currentSentenceIdx]; const speed = parseFloat(document.getElementById('speedSelect').value); const hintEl = document.getElementById('timerHint');
+            hintEl.innerText = "🔊 第一遍播放中..."; hintEl.style.color = "#e67e22";
+            activeUtterance = new SpeechSynthesisUtterance(sentence); activeUtterance.lang = 'en-US'; activeUtterance.rate = speed;
+            activeUtterance.onend = function() {
+                hintEl.innerText = "⏳ 间隔 10 秒后播放第二遍..."; hintEl.style.color = "#7f8c8d";
+                sentenceReplayTimer = setTimeout(() => {
+                    hintEl.innerText = "🔊 第二遍播放中..."; hintEl.style.color = "#e67e22";
+                    let utterance2 = new SpeechSynthesisUtterance(sentence); utterance2.lang = 'en-US'; utterance2.rate = speed;
+                    utterance2.onend = function() { hintEl.innerText = "✍️ 播放完毕，请完成输入并按回车..."; }; window.speechSynthesis.speak(utterance2);
+                }, 10000); 
+            };
+            window.speechSynthesis.speak(activeUtterance); setTimeout(() => { document.getElementById('articleDictInput').focus(); }, 100);
+        }
+        function checkArticleDictation() {
+            clearTimeout(sentenceReplayTimer); window.speechSynthesis.cancel(); document.getElementById('timerHint').innerText = "✅ 批改完成"; document.getElementById('timerHint').style.color = "#27ae60";
+            const userInput = document.getElementById('articleDictInput').value.trim(); const targetSentence = articleSentences[currentSentenceIdx];
+            let origWords = targetSentence.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/); let userWords = userInput.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/); let originalRawWords = targetSentence.split(/\s+/); let resultHTML =[], userIdx = 0;
+            for (let i = 0; i < origWords.length; i++) {
+                if (origWords[i] === "") continue; let found = false;
+                for (let j = userIdx; j < Math.min(userIdx + 3, userWords.length); j++) { if (origWords[i] === userWords[j]) { found = true; userIdx = j + 1; break; } }
+                if (found) resultHTML.push(`<span style="color: #27ae60; font-weight: bold;">${originalRawWords[i]}</span>`); else resultHTML.push(`<span style="color: #e74c3c; font-weight: bold; text-decoration: underline;">${originalRawWords[i]}</span>`);
+            }
+            const resBox = document.getElementById('articleDictResult'); resBox.style.display = 'block'; resBox.style.borderColor = "#8e44ad";
+            resBox.innerHTML = `<div style="margin-bottom: 10px; font-size: 15px; color: #7f8c8d;"><strong>📝 你写的是:</strong><br> ${userInput || "(未输入内容)"}</div><div style="font-size: 16px;"><strong>🎯 正确答案比对:</strong><br> ${resultHTML.join(' ')}</div>`;
+            document.getElementById('articleDictInput').blur(); document.getElementById('btnNextSentence').style.display = 'block';
+        }
+        function nextDictationSentence() {
+            currentSentenceIdx++; if (currentSentenceIdx >= articleSentences.length) { alert("🎉 太棒了！本篇文章均已听写完成！"); quitArticleDictation(); return; }
+            document.getElementById('articleDictResult').style.display = 'none'; document.getElementById('btnNextSentence').style.display = 'none'; document.getElementById('articleDictInput').value = ''; updateArticleDictProgress(); playCurrentSentence();
+        }
+        function quitArticleDictation() {
+            clearTimeout(sentenceReplayTimer); window.speechSynthesis.cancel(); document.getElementById('articleDictationSetup').style.display = 'block'; document.getElementById('articleDictationRunning').style.display = 'none'; document.getElementById('articleDisplay').style.filter = 'none';
+        }
 
         // =========================================================================
-        // ======================= AI 互动聊天逻辑 (带自动语音修复) =======================
+        // ======================= 聊天功能区 (带修复的小喇叭) =======================
         // =========================================================================
         
         const systemPrompt = `你是一位友好的英语母语者，正在和用户进行轻松的日常聊天。
@@ -175,29 +407,14 @@
 
 【纠错规则】（非常重要）：
 1. 只有当用户的英语出现明显的语法错误、或者严重的拼写错误时，你才需要纠错。
-2. 如果用户的英语表达能够让人理解，没有明显错误，**绝对不要**出现纠错内容，直接回答即可。
-3. 如果真的有错误，请**必须**将中文的纠错内容放在 <纠错> 和 </纠错> 标签之间，并且一定要把这个标签放在你回复的最前面。
+2. 如果没有明显错误，**绝对不要**纠错，直接回答。
+3. 如果有错误，请**必须**将中文纠错内容放在 <纠错> 和 </纠错> 标签之间，且放在回复的最前面。
 
-【回复示例 1 - 正常聊天无错误】：
-用户: What is your favorite color?
-AI: My favorite color is blue! It reminds me of the ocean. What about you?
+【示例】：
+用户: I is very happy.
+AI: <纠错>主语 I 后面应该用 am 喔。</纠错> I am so glad to hear that! Why are you happy?`;
 
-【回复示例 2 - 用户有语法错误】：
-用户: I is very happy today.
-AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 "I am very happy today."</纠错> I am so glad to hear that! Why are you so happy today?`;
-
-        let chatHistory =[
-            { role: "system", content: systemPrompt }
-        ];
-
-        window.onload = function() {
-            const savedKey = localStorage.getItem('silicon_api_key');
-            if (savedKey) {
-                document.getElementById('siliconApiKey').value = savedKey;
-                document.getElementById('apiKeyStatus').innerText = "✅ API Key 已读取";
-                document.getElementById('apiKeyStatus').style.color = "#27ae60";
-            }
-        };
+        let chatHistory =[{ role: "system", content: systemPrompt }];
 
         function saveApiKey() {
             const key = document.getElementById('siliconApiKey').value.trim();
@@ -205,19 +422,25 @@ AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 
                 localStorage.setItem('silicon_api_key', key);
                 document.getElementById('apiKeyStatus').innerText = "✅ 保存成功！可以直接聊天了。";
                 document.getElementById('apiKeyStatus').style.color = "#27ae60";
+                
+                // 保存成功后自动收起设置面板
+                setTimeout(() => { toggleSettings(); }, 600);
             } else {
                 alert("API Key 格式似乎不对，通常以 sk- 开头");
             }
         }
 
-        // --- 全局播放函数 ---
-        window.playAiSpeech = function(encodedText) {
+        // 核心修复：更安全的小喇叭发音事件
+        window.playAiSpeech = function(btnElement) {
+            // 从按钮的 data-text 属性里安全提取文本并解码
+            const encodedText = btnElement.getAttribute('data-text');
             const text = decodeURIComponent(encodedText);
-            window.speechSynthesis.cancel(); // 切断之前的声音
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-US';
-            utterance.rate = 0.95; 
-            window.speechSynthesis.speak(utterance);
+            
+            window.speechSynthesis.cancel(); 
+            activeUtterance = new SpeechSynthesisUtterance(text);
+            activeUtterance.lang = 'en-US';
+            activeUtterance.rate = 0.95; 
+            window.speechSynthesis.speak(activeUtterance);
         };
 
         async function sendChatMessage(overrideText = null) {
@@ -228,12 +451,11 @@ AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 
             
             const apiKey = localStorage.getItem('silicon_api_key');
             if (!apiKey) {
-                alert("请先在上方输入并保存硅基流动的 API Key！");
+                alert("请先展开设置，输入并保存硅基流动的 API Key！");
                 return;
             }
 
-            // 【关键修复1：静音解锁】在用户点击发送/按回车的瞬间，立刻触发一次空发音
-            // 这会“唤醒”苹果的音频引擎，获取后台发声权限，防止之后因为网络延迟被系统拦截
+            // 【静音解锁魔法】点击发送的瞬间，骗取苹果音频权限
             let unlockUtterance = new SpeechSynthesisUtterance('');
             window.speechSynthesis.speak(unlockUtterance);
 
@@ -242,33 +464,20 @@ AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 
             inputEl.blur(); 
 
             chatHistory.push({ role: "user", content: userText });
-
             const loadingId = appendChatBubble("⏳ 正在思考...", 'ai');
 
             try {
                 const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model: 'Qwen/Qwen2.5-7B-Instruct', 
-                        messages: chatHistory,
-                        max_tokens: 250,
-                        temperature: 0.7
-                    })
+                    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: 'Qwen/Qwen2.5-7B-Instruct', messages: chatHistory, max_tokens: 250, temperature: 0.7 })
                 });
 
-                if (!response.ok) {
-                    throw new Error("网络请求失败或 Key 无效，状态码: " + response.status);
-                }
-
+                if (!response.ok) throw new Error("网络请求失败");
                 const data = await response.json();
                 const aiRawText = data.choices[0].message.content;
 
                 chatHistory.push({ role: "assistant", content: aiRawText });
-
                 renderAndSpeakAiResponse(aiRawText, loadingId);
 
             } catch (error) {
@@ -279,9 +488,7 @@ AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 
         }
 
         function renderAndSpeakAiResponse(rawText, bubbleId) {
-            let correctionText = "";
-            let replyText = rawText;
-
+            let correctionText = ""; let replyText = rawText;
             const correctionMatch = rawText.match(/<纠错>([\s\S]*?)<\/纠错>/);
             
             if (correctionMatch) {
@@ -289,79 +496,58 @@ AI: <纠错>主语 I 后面应该用 am，而不是 is 喔。正确的表达是 
                 replyText = rawText.replace(/<纠错>[\s\S]*?<\/纠错>/, '').trim();
             }
 
-            // 【关键修复2：更柔和的过滤】只过滤汉字，保留原汁原味的英文标点符号 (如 I'm 不会变成 Im)
+            // 只过滤汉字，保留原英文标点符号
             const englishOnly = replyText.replace(/[\u4e00-\u9fa5]/g, '').trim(); 
-
-            // 【关键修复3：增加喇叭按钮】在气泡旁边附带一个播放按键
-            let htmlContent = "";
-            if (correctionText) {
-                htmlContent += `<div class="chat-correction"><strong>💡 语法小贴士:</strong><br>${correctionText}</div>`;
-            }
-            
-            // 使用 encodeURIComponent 确保文本传参时不会因为有引号等标点导致代码报错
             const safeText = encodeURIComponent(englishOnly);
+
+            let htmlContent = "";
+            if (correctionText) { htmlContent += `<div class="chat-correction"><strong>💡 语法小贴士:</strong><br>${correctionText}</div>`; }
+            
+            // 核心修复：把文本存在 data-text 属性中，避免 HTML 引号冲突
             htmlContent += `
                 <div class="chat-reply">
                     ${replyText}
-                    <button class="btn-play-reply" onclick="playAiSpeech('${safeText}')">🔊</button>
+                    <button class="btn-play-reply" data-text="${safeText}" onclick="playAiSpeech(this)">🔊</button>
                 </div>
             `;
-            
             updateChatBubble(bubbleId, htmlContent);
 
-            // 自动播放
+            // 自动发音
             if (englishOnly.length > 0) {
-                window.playAiSpeech(safeText);
+                window.speechSynthesis.cancel();
+                activeUtterance = new SpeechSynthesisUtterance(englishOnly);
+                activeUtterance.lang = 'en-US';
+                activeUtterance.rate = 0.95; 
+                window.speechSynthesis.speak(activeUtterance);
             }
         }
 
         function startChatVoice() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) return alert("请在 iPhone 自带的 Safari 浏览器中使用语音功能。");
-            
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'en-US';
-            
-            const inputEl = document.getElementById('chatMsgInput');
-            inputEl.placeholder = "🎤 正在聆听你的英语...";
-            
+            const recognition = new SpeechRecognition(); recognition.lang = 'en-US';
+            const inputEl = document.getElementById('chatMsgInput'); inputEl.placeholder = "🎤 正在聆听...";
             recognition.start();
-            
             recognition.onresult = function(event) {
                 const transcript = event.results[0][0].transcript;
-                inputEl.value = transcript;
-                inputEl.placeholder = "输入英语与 AI 对话...";
-                sendChatMessage(transcript); // 录音结束自动发送
+                inputEl.value = transcript; inputEl.placeholder = "输入英语与 AI 对话...";
+                sendChatMessage(transcript);
             };
-            
-            recognition.onerror = function(event) {
+            recognition.onerror = function() {
                 inputEl.placeholder = "⚠️ 没听清，请重按麦克风。";
                 setTimeout(() => { inputEl.placeholder = "输入英语与 AI 对话..."; }, 2000);
             };
         }
 
         function appendChatBubble(text, sender) {
-            const chatLog = document.getElementById('chatLog');
-            const bubbleId = "msg-" + Date.now();
-            
-            const bubbleDiv = document.createElement('div');
-            bubbleDiv.className = `chat-bubble bubble-${sender}`;
-            bubbleDiv.id = bubbleId;
-            bubbleDiv.innerHTML = text; 
-            
-            chatLog.appendChild(bubbleDiv);
-            chatLog.scrollTop = chatLog.scrollHeight;
-            
-            return bubbleId;
+            const chatLog = document.getElementById('chatLog'); const bubbleId = "msg-" + Date.now();
+            const bubbleDiv = document.createElement('div'); bubbleDiv.className = `chat-bubble bubble-${sender}`; bubbleDiv.id = bubbleId; bubbleDiv.innerHTML = text; 
+            chatLog.appendChild(bubbleDiv); chatLog.scrollTop = chatLog.scrollHeight; return bubbleId;
         }
 
         function updateChatBubble(bubbleId, htmlText) {
             const bubbleDiv = document.getElementById(bubbleId);
-            if (bubbleDiv) {
-                bubbleDiv.innerHTML = htmlText;
-                const chatLog = document.getElementById('chatLog');
-                chatLog.scrollTop = chatLog.scrollHeight;
-            }
+            if (bubbleDiv) { bubbleDiv.innerHTML = htmlText; document.getElementById('chatLog').scrollTop = document.getElementById('chatLog').scrollHeight; }
         }
 
     </script>
