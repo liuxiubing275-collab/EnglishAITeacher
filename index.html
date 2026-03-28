@@ -227,15 +227,23 @@
             if (wordList.length > 0) { initGroupSelect(); updateWordDisplay(); }
 
             try {
-                const aRes = await fetch('Texts.txt');
-                if (aRes.ok) {
-                    const aText = await aRes.text();
-                    articleList = aText.split(/---|(?:\r?\n){2,}/).map(a => a.trim()).filter(a => a.length > 0);
-                }
-            } catch (e) { console.log("文章库未找到"); }
-            if (articleList.length > 0) { initArticleSelect(); }
-        }
-
+        	const aRes = await fetch('Texts.txt');
+        	if (aRes.ok) {
+            	const aText = await aRes.text();
+            	// 修改点：将文本按行切割，过滤空行
+            	const allLines = aText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+            	articleList = [];
+            	// 每两行组成一个对象 { en: "...", zh: "..." }
+            	for (let i = 0; i < allLines.length; i += 2) {
+                	articleList.push({
+                    	en: allLines[i],
+                    	zh: allLines[i + 1] || "" // 如果最后一行没翻译，给个空字符串
+                	});
+            	           }
+        	      }
+    	} catch (e) { console.log("文章库未找到"); }
+    	if (articleList.length > 0) { initArticleSelect(); }
+}
         // ================= 单词基础功能 =================
         function initGroupSelect() {
             const select = document.getElementById('groupSelect'); select.innerHTML = `<option value="all">📚 整体练习 (共 ${wordList.length} 词)</option>`;
@@ -337,11 +345,31 @@
             startSel.value = 0; endSel.value = 0; changeArticleRange();
         }
         function changeArticleRange() { 
-            let startIdx = parseInt(document.getElementById('articleStartSelect').value); let endIdx = parseInt(document.getElementById('articleEndSelect').value);
-            if (endIdx < startIdx) { endIdx = startIdx; document.getElementById('articleEndSelect').value = endIdx; }
-            currentArticleText = articleList.slice(startIdx, endIdx + 1).join(' ');
-            document.getElementById('articleDisplay').innerText = currentArticleText;
-            document.getElementById('diffResult').style.display = 'none'; document.getElementById('articleDisplay').style.filter = 'none'; quitArticleDictation(); 
+    let startIdx = parseInt(document.getElementById('articleStartSelect').value); 
+    let endIdx = parseInt(document.getElementById('articleEndSelect').value);
+    if (endIdx < startIdx) { endIdx = startIdx; document.getElementById('articleEndSelect').value = endIdx; }
+    // 选中的段落范围
+    let selectedItems = articleList.slice(startIdx, endIdx + 1);
+    
+    // 修改点：构造带有翻译的 HTML 结构
+    let htmlContent = "";
+    selectedItems.forEach(item => {
+        htmlContent += `
+            <div style="margin-bottom: 15px;">
+                <div style="color: #2c3e50; font-weight: 500;">${item.en}</div>
+                <div style="color: #7f8c8d; font-size: 14px; margin-top: 4px;">${item.zh}</div>
+            </div>
+        `;
+    });
+    
+    // 更新显示区域（注意：这里改用 innerHTML）
+    document.getElementById('articleDisplay').innerHTML = htmlContent;
+
+    currentArticleText = selectedItems.map(item => item.en).join(' ');
+    
+    document.getElementById('diffResult').style.display = 'none'; 
+    document.getElementById('articleDisplay').style.filter = 'none'; 
+    quitArticleDictation(); 
         }
         function nextArticleRange() {
             if (articleList.length === 0) return;
@@ -368,14 +396,30 @@
 
         // --- 文章逐句听写 ---
         let articleSentences =[]; let currentSentenceIdx = 0; let sentenceReplayTimer = null;
-        function startArticleDictation() {
-            if (!currentArticleText) return alert("文章库为空！");
-            articleSentences = currentArticleText.match(/[^.!?\n]+[.!?\n]+/g) ||[currentArticleText];
-            articleSentences = articleSentences.map(s => s.trim()).filter(s => s.length > 0); currentSentenceIdx = 0;
-            document.getElementById('articleDictationSetup').style.display = 'none'; document.getElementById('articleDictationRunning').style.display = 'block'; document.getElementById('articleDictResult').style.display = 'none'; document.getElementById('btnNextSentence').style.display = 'none'; document.getElementById('articleDictInput').value = '';
-            document.getElementById('articleDisplay').style.filter = 'blur(8px)';
-            updateArticleDictProgress(); setTimeout(() => { playCurrentSentence(); }, 500);
-        }
+function startArticleDictation() {
+    if (articleList.length === 0) return alert("文章库为空！");
+    
+    // 获取当前选中的英文句子
+    let startIdx = parseInt(document.getElementById('articleStartSelect').value); 
+    let endIdx = parseInt(document.getElementById('articleEndSelect').value);
+    let selectedItems = articleList.slice(startIdx, endIdx + 1);
+
+    // 将选中的每一组的英文部分组合起来，然后拆成单句
+    let combinedEn = selectedItems.map(item => item.en).join(' ');
+    articleSentences = combinedEn.match(/[^.!?\n]+[.!?\n]+/g) || [combinedEn];
+    
+    articleSentences = articleSentences.map(s => s.trim()).filter(s => s.length > 0); 
+    currentSentenceIdx = 0;
+    
+    document.getElementById('articleDictationSetup').style.display = 'none'; 
+    document.getElementById('articleDictationRunning').style.display = 'block'; 
+    document.getElementById('articleDictResult').style.display = 'none'; 
+    document.getElementById('btnNextSentence').style.display = 'none'; 
+    document.getElementById('articleDictInput').value = '';
+    document.getElementById('articleDisplay').style.filter = 'blur(8px)';
+    updateArticleDictProgress(); 
+    setTimeout(() => { playCurrentSentence(); }, 500);
+}
         function updateArticleDictProgress() { document.getElementById('articleDictProgress').innerText = `正在听写: 第 ${currentSentenceIdx + 1} 句 / 共 ${articleSentences.length} 句`; }
         function playCurrentSentence() {
             clearTimeout(sentenceReplayTimer); window.speechSynthesis.cancel(); const sentence = articleSentences[currentSentenceIdx]; const speed = parseFloat(document.getElementById('speedSelect').value); const hintEl = document.getElementById('timerHint');
