@@ -109,6 +109,20 @@
         </div>
     </div>
 
+<!-- 新增：1247复习建议区 -->
+<div style="background-color: #f8f9fa; border: 1px dashed #3498db; padding: 12px; border-radius: 10px; margin-top: 10px;">
+    <p style="margin: 0 0 8px 0; font-size: 14px; color: #2c3e50; font-weight: bold;">📅 1247 科学复习法</p>
+    <div style="display: flex; gap: 8px; align-items: center;">
+        <span style="font-size: 13px;">今天学第</span>
+        <input type="number" id="currentGroupInput" placeholder="组号" style="width: 60px; padding: 5px; margin: 0; text-align: center; border: 1px solid #3498db;">
+        <span style="font-size: 13px;">组</span>
+        <button onclick="calculateReviewGroups()" style="background: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 13px;">生成复习计划</button>
+    </div>
+    <div id="reviewResultArea" style="margin-top: 10px; font-size: 13px; color: #7f8c8d; display: none;">
+        需复习：<span id="reviewLinks"></span>
+    </div>
+</div>
+
     <!-- ================= 页面 2：文章跟读 ================= -->
     <div id="page-articles" class="page-section">
         <div class="card">
@@ -332,6 +346,57 @@
             document.getElementById('groupTestResultList').innerHTML = htmlList; document.getElementById('groupTestInput').blur();
         }
         function quitGroupTest() { document.getElementById('dictationGroupMode').style.display = 'none'; document.getElementById('dictationResultMode').style.display = 'none'; document.getElementById('dictationSingleMode').style.display = 'block'; document.getElementById('targetWord').style.filter = 'none'; }
+
+// 新增：1247复习逻辑
+function calculateReviewGroups() {
+    const inputVal = document.getElementById('currentGroupInput').value;
+    if (!inputVal) { alert("请输入当前组号"); return; }
+    
+    const N = parseInt(inputVal);
+    const reviewOffsets = [1, 3, 6]; // 对应 1, 4, 7 天周期的组数偏移
+    const resultArea = document.getElementById('reviewResultArea');
+    const linksSpan = document.getElementById('reviewLinks');
+    
+    let reviewGroups = [];
+    reviewOffsets.forEach(offset => {
+        let target = N - offset;
+        if (target >= 1) {
+            reviewGroups.push(target);
+        }
+    });
+
+    if (reviewGroups.length === 0) {
+        linksSpan.innerHTML = "前期积累中，暂无复习任务。";
+    } else {
+        linksSpan.innerHTML = "";
+        reviewGroups.forEach(gNum => {
+            // 创建可点击的蓝色链接
+            const link = document.createElement('a');
+            link.href = "#";
+            link.innerText = `第 ${gNum} 组`;
+            link.style = "color: #007aff; font-weight: bold; text-decoration: underline; margin-right: 10px; cursor: pointer;";
+            link.onclick = (e) => {
+                e.preventDefault();
+                jumpToGroup(gNum - 1); // 索引是从0开始的
+            };
+            linksSpan.appendChild(link);
+        });
+    }
+    resultArea.style.display = 'block';
+}
+
+// 新增：跳转词组的辅助函数
+function jumpToGroup(index) {
+    const select = document.getElementById('groupSelect');
+    if (index >= 0 && index < select.options.length - 1) {
+        select.value = index;
+        changeGroup(); // 触发原有的切换逻辑
+        // 滚动到顶部方便练习
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        alert("该组号不存在");
+    }
+}
 
         // ================= 文章：多段落连读 =================
         function initArticleSelect() { 
