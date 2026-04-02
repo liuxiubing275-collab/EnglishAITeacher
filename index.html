@@ -77,6 +77,26 @@
         <div class="card" style="border: 2px solid #3498db;">
             <h2>🗣️ 单词发音与跟读 <span id="wordCounter" style="font-size: 14px; color: #8e8e93; font-weight: normal;">1/1</span></h2>
             <select id="groupSelect" onchange="changeGroup()" style="font-weight: bold; color: #2980b9; border: 2px solid #3498db;"><option value="all">📚 整体练习 (加载中...)</option></select>
+
+        <!-- 【关键：把 1247 代码移动到这里！】 -->
+        <!-- 确保这段代码在 id="page-words" 的 div 内部 -->
+        <div style="background-color: #f8f9fa; border: 1px dashed #3498db; padding: 12px; border-radius: 10px; margin-top: 10px;">
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #2c3e50; font-weight: bold;">📅 1247 科学复习法</p>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="font-size: 13px;">今天学第</span>
+                <input type="number" id="currentGroupInput" placeholder="组号" style="width: 60px; padding: 5px; margin: 0; text-align: center; border: 1px solid #3498db;">
+                <span style="font-size: 13px;">组</span>
+                <button onclick="calculateReviewGroups()" style="background: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 13px;">生成复习计划</button>
+            </div>
+            <div id="reviewResultArea" style="margin-top: 10px; font-size: 13px; color: #7f8c8d; display: none;">
+                需复习：<span id="reviewLinks"></span>
+            </div>
+        </div>
+
+        <!-- 单词显示的单词主体 -->
+        <p><strong style="font-size: 36px; color: #27ae60; ..." id="targetWord" ...>加载中...</strong></p>
+  
+
             <p><strong style="font-size: 36px; color: #27ae60; display: block; text-align: center; margin: 15px 0 5px 0;" id="targetWord" onclick="toggleBlur()">加载中...</strong></p>
             <p id="chineseMeaning">中文释义</p><div id="exampleSentence" class="example-box"></div>
             <div class="row-buttons"><button class="action-btn" onclick="readTargetWord()" style="background-color: #27ae60;">🔊 听标准音</button><button class="action-btn" onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button></div>
@@ -109,19 +129,6 @@
         </div>
     </div>
 
-<!-- 新增：1247复习建议区 -->
-<div style="background-color: #f8f9fa; border: 1px dashed #3498db; padding: 12px; border-radius: 10px; margin-top: 10px;">
-    <p style="margin: 0 0 8px 0; font-size: 14px; color: #2c3e50; font-weight: bold;">📅 1247 科学复习法</p>
-    <div style="display: flex; gap: 8px; align-items: center;">
-        <span style="font-size: 13px;">今天学第</span>
-        <input type="number" id="currentGroupInput" placeholder="组号" style="width: 60px; padding: 5px; margin: 0; text-align: center; border: 1px solid #3498db;">
-        <span style="font-size: 13px;">组</span>
-        <button onclick="calculateReviewGroups()" style="background: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 13px;">生成复习计划</button>
-    </div>
-    <div id="reviewResultArea" style="margin-top: 10px; font-size: 13px; color: #7f8c8d; display: none;">
-        需复习：<span id="reviewLinks"></span>
-    </div>
-</div>
 
     <!-- ================= 页面 2：文章跟读 ================= -->
     <div id="page-articles" class="page-section">
