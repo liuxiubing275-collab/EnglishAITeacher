@@ -94,11 +94,16 @@
         </div>
 
         <!-- 单词显示的单词主体 -->
-        <p><strong style="font-size: 36px; color: #27ae60; ..." id="targetWord" ...>加载中...</strong></p>
-  
-
-            <p><strong style="font-size: 36px; color: #27ae60; display: block; text-align: center; margin: 15px 0 5px 0;" id="targetWord" onclick="toggleBlur()">加载中...</strong></p>
-            <p id="chineseMeaning">中文释义</p><div id="exampleSentence" class="example-box"></div>
+ 
+        <div style="text-align: center; width: 100%; margin-top: 20px;">
+            <strong style="font-size: 42px; color: #27ae60; display: block; margin-bottom: 5px;" id="targetWord" onclick="toggleBlur()">
+                加载中...
+            </strong>
+            <p id="chineseMeaning" style="text-align: center; font-size: 20px; color: #8e44ad; font-weight: bold; display: none; margin: 10px 0;">
+                中文释义
+            </p>
+        </div>
+            <div id="exampleSentence" class="example-box"></div>
             <div class="row-buttons"><button class="action-btn" onclick="readTargetWord()" style="background-color: #27ae60;">🔊 听标准音</button><button class="action-btn" onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button></div>
             <div class="row-buttons"><button class="action-btn" onclick="toggleMeaning()" style="background-color: #9b59b6;">👀 看中文</button><button class="action-btn" onclick="showAndPlayExample()" style="background-color: #f39c12;">📖 看/读例句</button></div>
             <p id="wordResult" class="result-text"></p>
