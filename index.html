@@ -82,6 +82,21 @@
     <div id="page-words" class="page-section active">
         <div class="card" style="border: 2px solid #3498db;">
             <h2>🗣️ 单词发音与跟读 <span id="wordCounter" style="font-size: 14px; color: #8e8e93; font-weight: normal;">1/1</span></h2>
+
+<!-- 1. 每日科学学习看板 -->
+<div id="dailyTaskDashboard" style="background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(37, 117, 252, 0.3);">
+    <h3 style="margin: 0 0 10px 0; font-size: 16px; display: flex; justify-content: space-between;">
+        📅 今日学习计划 <span id="todayDate" style="font-size: 12px; opacity: 0.8;"></span>
+    </h3>
+    <div id="taskList" style="font-size: 14px; line-height: 1.8;">
+        <!-- 动态生成任务 -->
+        正在计算进度...
+    </div>
+    <button onclick="markCurrentGroupFinished()" style="background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 8px 12px; border-radius: 20px; font-size: 12px; margin-top: 10px; cursor: pointer; width: 100%; font-weight: bold;">
+        ✅ 标记当前组（第 <span id="currentActiveGNum">-</span> 组）为今日已完成
+    </button>
+</div>
+
             <select id="groupSelect" onchange="changeGroup()" style="font-weight: bold; color: #2980b9; border: 2px solid #3498db;"><option value="all">📚 整体练习 (加载中...)</option></select>
 
         <!-- 【关键：把 1247 代码移动到这里！】 -->
@@ -224,31 +239,107 @@
         // ================= 全局 & 导航 =================
         let activeUtterance = null; 
 
+// ================= 方案一：自动化进度管理逻辑 =================
+
+// 初始化：页面加载时刷新看板
+window.addEventListener('load', () => {
+    updateDailyDashboard();
+    // 同时也更新看板上显示的当前组号
+    setInterval(() => {
+        const val = document.getElementById('groupSelect').value;
+        const gNum = val === 'all' ? '全' : parseInt(val) + 1;
+        document.getElementById('currentActiveGNum').innerText = gNum;
+    }, 500);
+});
+
+// 1. 标记当前组为“已学完”并记录日期
+function markCurrentGroupFinished() {
+    const val = document.getElementById('groupSelect').value;
+    if (val === 'all') { alert("请先选择一个具体的组号进行学习。"); return; }
+    
+    const groupNum = parseInt(val) + 1;
+    const today = new Date().toISOString().split('T')[0]; // 格式: 2023-10-27
+
+    // 读取历史记录
+    let history = JSON.parse(localStorage.getItem('eng_study_history') || '{}');
+    
+    // 存入当前组的完成日期
+    history[groupNum] = today;
+    localStorage.setItem('eng_study_history', JSON.stringify(history));
+    
+    alert(`🎉 记录成功！第 ${groupNum} 组的复习计划已自动开启。`);
+    updateDailyDashboard();
+}
+
+// 2. 核心计算：根据遗忘曲线计算今日任务
+function updateDailyDashboard() {
+    const dashboard = document.getElementById('taskList');
+    const dateSpan = document.getElementById('todayDate');
+    const todayObj = new Date();
+    const todayStr = todayObj.toISOString().split('T')[0];
+    dateSpan.innerText = todayStr;
+
+    let history = JSON.parse(localStorage.getItem('eng_study_history') || '{}');
+    let tasks = [];
+    
+    // 找出最大的组号，建议学习下一组
+    let maxGroup = 0;
+    Object.keys(history).forEach(g => { if(parseInt(g) > maxGroup) maxGroup = parseInt(g); });
+    tasks.push(`🆕 <b>新课建议：</b> 开始第 <a href="#" onclick="jumpToGroup(${maxGroup})">${maxGroup + 1}</a> 组`);
+
+    // 筛选需要复习的组 (根据 1, 3, 6 天的间隔)
+    let reviewGroups = [];
+    for (let gNum in history) {
+        const studyDate = new Date(history[gNum]);
+        const diffTime = Math.abs(todayObj - studyDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) - 1; 
+
+        // 对应 1-2-4-7 逻辑中的复习点：1天后, 4天后(3天间隔), 7天后(6天间隔)
+        if (diffDays === 1 || diffDays === 3 || diffDays === 6) {
+            reviewGroups.push({num: gNum, day: diffDays});
+        }
+    }
+
+    if (reviewGroups.length > 0) {
+        let reviewHTML = `<br>🔄 <b>今日必复习：</b> `;
+        reviewGroups.forEach(item => {
+            reviewHTML += `<a href="#" onclick="jumpToGroup(${item.num-1})" style="color:white; text-decoration:underline; margin-right:8px;">第 ${item.num} 组</a>`;
+        });
+        tasks.push(reviewHTML);
+    } else {
+        tasks.push(`<br>✅ 今日暂无旧课复习任务，请专注新课！`);
+    }
+
+    dashboard.innerHTML = tasks.join('<br>');
+}
+
 // 核心函数：生成 AI 复习故事
 async function generateRevisionStory() {
     const apiKey = localStorage.getItem('silicon_api_key');
     if (!apiKey) { alert("请先在‘互动聊天’版块设置并保存 API Key"); return; }
 
-    // 1. 自动提取复习组中的单词
-    const inputVal = document.getElementById('currentGroupInput').value;
-    const N = parseInt(inputVal);
-    const offsets = [1, 3, 6];
+    // 自动逻辑：从历史记录中抓取符合 1,3,6 天规则的所有单词
+    let history = JSON.parse(localStorage.getItem('eng_study_history') || '{}');
+    const todayObj = new Date();
     let selectedWords = [];
 
-    offsets.forEach(offset => {
-        let gNum = N - offset;
-        if (gNum >= 1) {
-            let start = (gNum - 1) * 10;
+    for (let gNum in history) {
+        const studyDate = new Date(history[gNum]);
+        const diffDays = Math.ceil(Math.abs(todayObj - studyDate) / (1000 * 60 * 60 * 24)) - 1;
+
+        if (diffDays === 1 || diffDays === 3 || diffDays === 6) {
+            let start = (parseInt(gNum) - 1) * 10;
             let end = Math.min(start + 9, wordList.length - 1);
-            // 每个复习组随机抽 2 个词，避免单词太多故事太乱
-            for(let i=0; i<2; i++) {
-                let randomIdx = Math.floor(Math.random() * (end - start + 1)) + start;
-                if(wordList[randomIdx]) selectedWords.push(wordList[randomIdx].en);
+            for (let i = start; i <= end; i++) {
+                if (wordList[i]) selectedWords.push(wordList[i].en);
             }
         }
-    });
+    }
 
-    if (selectedWords.length === 0) { alert("暂无复习词汇可生成故事"); return; }
+    if (selectedWords.length === 0) {
+        alert("今日没有到期的复习单词。建议你先学习新课并点击‘标记完成’。");
+        return;
+    }
 
     // 2. UI 状态更新
     const btn = document.getElementById('btnGenStory');
