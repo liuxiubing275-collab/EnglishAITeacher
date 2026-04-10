@@ -709,3 +709,62 @@ function transferGroupStoryToArticle() {
     quitArticleDictation();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// ================= [补全功能] 1247 手动计算复习计划 =================
+
+function calculateReviewGroups() {
+    const inputVal = document.getElementById('currentGroupInput').value;
+    if (!inputVal) {
+        alert("请输入你今天正在学习的组号（例如：7）");
+        return;
+    }
+    
+    const N = parseInt(inputVal);
+    const reviewOffsets = [1, 3, 6]; // 1-2-4-7 法则的偏移量
+    const resultArea = document.getElementById('reviewResultArea');
+    const linksSpan = document.getElementById('reviewLinks');
+    const aiStoryArea = document.getElementById('aiStoryArea');
+    
+    if (!resultArea || !linksSpan) {
+        console.error("HTML 中缺少复习结果显示区域");
+        return;
+    }
+
+    let reviewGroups = [];
+    reviewOffsets.forEach(offset => {
+        let target = N - offset;
+        if (target >= 1) {
+            reviewGroups.push(target);
+        }
+    });
+
+    if (reviewGroups.length === 0) {
+        linksSpan.innerHTML = "<span style='color:#7f8c8d'>前期积累中，暂无复习任务。</span>";
+    } else {
+        linksSpan.innerHTML = "";
+        // 倒序排列，让最近的组号排在前面
+        reviewGroups.reverse().forEach(gNum => {
+            const link = document.createElement('a');
+            link.href = "#";
+            link.innerText = `第 ${gNum} 组`;
+            // 设置明显的黄色链接样式，呼应看板风格
+            link.style = "color: #f39c12; font-weight: bold; text-decoration: underline; margin-right: 15px; cursor: pointer;";
+            link.onclick = (e) => {
+                e.preventDefault();
+                jumpToGroup(gNum - 1); // 索引从 0 开始
+            };
+            linksSpan.appendChild(link);
+        });
+    }
+
+    // 显示结果区域和 AI 故事生成区域
+    resultArea.style.display = 'block';
+    if (aiStoryArea) aiStoryArea.style.display = 'block';
+    
+    // 自动清理之前的 AI 故事内容，防止混淆
+    const storyContent = document.getElementById('aiStoryContent');
+    if (storyContent) {
+        storyContent.style.display = 'none';
+        storyContent.innerHTML = "";
+    }
+}
