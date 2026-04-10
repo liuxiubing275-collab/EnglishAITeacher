@@ -402,24 +402,55 @@ function readTargetWord() {
     setTimeout(() => { document.getElementById('dictationInput').focus(); }, 100);
 }
 
-// 语音跟读识别
+// 单词练习：语音跟读识别
 function startListeningForWord() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition; 
-    if (!SpeechRecognition) return alert("请在 Safari 或 Chrome 中使用。");
+    if (!SpeechRecognition) return alert("您的浏览器不支持语音识别，请在 iPhone Safari 或 Chrome 中使用。");
+    
     const recognition = new SpeechRecognition(); 
     recognition.lang = 'en-US'; 
-    document.getElementById('wordResult').innerText = "正在聆听..."; 
+    const resultEl = document.getElementById('wordResult');
+    
+    resultEl.style.color = "#333";
+    resultEl.innerText = "正在聆听..."; 
+    
     recognition.start();
+
     recognition.onresult = function(event) {
+        // 获取识别到的文本并清洗
         const transcript = event.results[0][0].transcript.toLowerCase().replace(/[.,!?]/g, '').trim(); 
         const target = wordList[currentWordIndex].en.toLowerCase().trim(); 
-        const resultEl = document.getElementById('wordResult');
+        
         if (transcript === target) { 
-            resultEl.style.color = "#27ae60"; resultEl.innerHTML = `✅ 完美！读作: "${transcript}"`; 
+            resultEl.style.color = "#27ae60"; 
+            resultEl.innerHTML = `✅ 完美！读作: "${transcript}"`; 
         } else { 
-            resultEl.style.color = "#e74c3c"; resultEl.innerHTML = `❌ 差一点: "${transcript}"`; 
+            resultEl.style.color = "#e74c3c"; 
+            resultEl.innerHTML = `❌ 差一点: "${transcript}"`; 
         }
     };
+
+    recognition.onerror = function() {
+        resultEl.innerText = "⚠️ 没听清，请重试。";
+    };
+}
+2. 检查 3 行读取逻辑是否完整
+因为你改成了“三行一词”，请务必确认你的 loadAllData 函数已经更新为 i += 3，否则数据会错位，导致 currentWordIndex 对应的对象属性（如 en）变成空的，从而引发更多错误。
+检查你的 loadAllData 是否包含这部分逻辑：
+code
+JavaScript
+for (let i = 0; i < rawLines.length; i += 3) {
+    const wordLine = rawLines[i];
+    const sentenceLine = rawLines[i + 1] || "No example.";
+    const hookLine = rawLines[i + 2] || "暂无记忆钩子。";
+    
+    const parts = wordLine.split(/\||:|：/);
+    wordList.push({ 
+        en: parts[0].trim(), 
+        zh: parts.length > 1 ? parts[1].trim() : "暂无释义", 
+        ex: sentenceLine,
+        hook: hookLine 
+    });
 }
 
 // 单词拼写检查
