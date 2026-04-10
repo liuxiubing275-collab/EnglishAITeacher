@@ -68,7 +68,7 @@ async function loadAllData() {
                 wordList.push({ 
                     en: parts[0].trim(), 
                     zh: parts.length > 1 ? parts[1].trim() : "暂无中文释义", 
-                    ex: sentenceLine
+                    ex: sentenceLine, 
 	    hook: hookLine // 将记忆钩子存入对象 
                 });
             }
