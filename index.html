@@ -109,6 +109,21 @@
     🏰 一键生成全组记忆宫殿
 </button>
 
+<!-- 一键生成全组记忆宫殿按钮 -->
+<div class="row-buttons">
+    <button class="action-btn" onclick="generateGroupMemoryPalace()" style="background-color: #e67e22; width: 100%; margin-top: 10px;">
+        🏰 实时生成全组记忆宫殿（基于我家布局）
+    </button>
+</div>
+
+<!-- 宫殿内容展示区 -->
+<div id="memoryPalaceArea" class="card" style="display: none; margin-top: 20px; border: 2px solid #e67e22; background-color: #fffaf0;">
+    <h2 style="color: #d35400;">🏰 我家的记忆宫殿清单</h2>
+    <div id="palaceContent" style="font-size: 15px; line-height: 1.8; text-align: left; color: #333;">
+        正在根据您的家居布局构建动态画面...
+    </div>
+</div>
+
 <!-- 记忆宫殿展示区 -->
 <div id="memoryPalaceArea" class="card" style="display: none; margin-top: 20px; border: 1px solid #f39c12; background-color: #fffaf0;">
     <h2 style="color: #e67e22;">🏰 本组记忆宫殿清单</h2>
