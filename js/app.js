@@ -338,11 +338,34 @@ function initArticleSelect() {
 }
 
 function changeArticleRange() {
-    const start = parseInt(document.getElementById('articleStartSelect').value);
-    const end = parseInt(document.getElementById('articleEndSelect').value);
-    const selected = articleList.slice(start, Math.max(start, end) + 1);
-    document.getElementById('articleDisplay').innerHTML = selected.map(item => `<div style="margin-bottom:12px;">${item.en}<br><small style="color:#7f8c8d">${item.zh}</small></div>`).join('');
+    const startSel = document.getElementById('articleStartSelect');
+    const endSel = document.getElementById('articleEndSelect');
+    
+    let startIdx = parseInt(startSel.value);
+    let endIdx = parseInt(endSel.value);
+
+    // 【修复逻辑】如果起始段落选得比结束段落还晚，强制同步
+    if (startIdx > endIdx) {
+        endIdx = startIdx;
+        endSel.value = endIdx;
+    }
+
+    const selected = articleList.slice(startIdx, endIdx + 1);
+    
+    // 如果没有数据，显示提示
+    if (selected.length === 0) {
+        document.getElementById('articleDisplay').innerHTML = "未选中有效段落";
+        return;
+    }
+
+    document.getElementById('articleDisplay').innerHTML = selected.map(item => 
+        `<div style="margin-bottom:12px;">${item.en}<br><small style="color:#7f8c8d">${item.zh}</small></div>`
+    ).join('');
+
+    // 更新当前练习的纯英文文本
     currentArticleText = selected.map(item => item.en).join(' ');
+    
+    // 重置比对结果和听写状态
     document.getElementById('diffResult').style.display = 'none';
     quitArticleDictation();
 }
@@ -366,15 +389,73 @@ function speakArticle() {
 
 function startListeningForArticle() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return alert("不支持");
-    const rec = new SR(); rec.lang = 'en-US';
+    if (!SR) return alert("您的浏览器不支持语音识别");
+
+    const recognition = new SR();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+
     const box = document.getElementById('diffResult');
     const con = document.getElementById('diffContent');
-    box.style.display = 'block'; con.innerText = "正在聆听..."; rec.start();
-    rec.onresult = (e) => {
+
+    box.style.display = 'block';
+    box.style.borderColor = '#e67e22'; // 橙色表示正在听
+    con.innerHTML = "🎤 <strong>请开始朗读...</strong>";
+
+    recognition.start();
+
+    recognition.onresult = (e) => {
         const spoken = e.results[0][0].transcript;
-        con.innerHTML = `你读的是: "${spoken}"<br>比对功能开发中...`;
+        
+        // 【核心修改】：调用比对算法
+        const diffHTML = compareSentences(currentArticleText, spoken);
+        
+        box.style.borderColor = '#27ae60'; // 识别成功变绿
+        con.innerHTML = `
+            <div style="margin-bottom: 10px; color: #7f8c8d; font-size: 14px; border-bottom: 1px dashed #eee; padding-bottom:5px;">
+                <b>AI 听到的内容：</b><br>"${spoken}"
+            </div>
+            <div style="line-height: 1.8;">
+                <b>比对结果（绿色为准确，红色为错漏）：</b><br>${diffHTML}
+            </div>
+        `;
     };
+
+    recognition.onerror = () => {
+        box.style.borderColor = '#e74c3c';
+        con.innerHTML = "⚠️ 没听清，请点击按钮重试。";
+    };
+}
+
+function compareSentences(original, spoken) {
+    // 清洗文本：转小写，去掉标点
+    let origWords = original.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/);
+    let spokenWords = spoken.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/);
+    let originalRawWords = original.split(/\s+/); // 保留带标点的原词用于展示
+    
+    let resultHTML = [];
+    let spokenIdx = 0;
+
+    for (let i = 0; i < origWords.length; i++) {
+        if (!origWords[i]) continue;
+        
+        let found = false;
+        // 在说话内容中向后搜索3个词，防止漏读一个词导致全盘变红
+        for (let j = spokenIdx; j < Math.min(spokenIdx + 3, spokenWords.length); j++) {
+            if (origWords[i] === spokenWords[j]) {
+                found = true;
+                spokenIdx = j + 1;
+                break;
+            }
+        }
+
+        if (found) {
+            resultHTML.push(`<span style="color: #27ae60; font-weight: bold;">${originalRawWords[i]}</span>`);
+        } else {
+            resultHTML.push(`<span style="color: #e74c3c; text-decoration: line-through;">${originalRawWords[i]}</span>`);
+        }
+    }
+    return resultHTML.join(' ');
 }
 
 // 逐句听写 (黄金10秒)
