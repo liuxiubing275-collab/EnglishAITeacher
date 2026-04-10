@@ -184,6 +184,38 @@
                 <button class="action-btn" onclick="quitArticleDictation()" style="background-color: #e74c3c; margin-top: 15px;">🚪 结束精听</button>
             </div>
         </div>
+
+<!-- ================= 翻译挑战卡片 ================= -->
+<div class="card" style="border: 2px solid #27ae60;">
+    <h2>🏆 每日翻译挑战 (中译英)</h2>
+    <div id="transSetup">
+        <button class="action-btn" onclick="startTranslationChallenge()" style="background-color: #27ae60;">🚀 开始今日 3 句挑战</button>
+        <p style="font-size: 12px; color: #7f8c8d; text-align: center; margin-top: 5px;">AI 会根据你当前的单词进度为你出题</p>
+    </div>
+
+    <!-- 输入区域 -->
+    <div id="transWorking" style="display: none;">
+        <div id="transQuestions"></div>
+        <button class="action-btn" id="btnSubmitTrans" onclick="gradeTranslations()" style="background-color: #2980b9; margin-top: 15px;">✅ 提交 AI 批改</button>
+    </div>
+
+    <!-- 结果与并排对比 -->
+    <div id="transResult" style="display: none; margin-top: 15px;">
+        <div id="transComparisonArea"></div>
+    </div>
+
+    <!-- 5次抄写强化区 -->
+    <div id="copyExerciseArea" style="display: none; margin-top: 20px; padding-top: 15px; border-top: 2px dashed #27ae60;">
+        <h3 style="color: #27ae60;">✍️ 刻意练习：正确版本抄写 5 遍</h3>
+        <p id="copyTargetSentence" style="font-weight: bold; background: #f0fff4; padding: 10px; border-radius: 8px;"></p>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="copyInput" placeholder="在此输入正确答案..." autocomplete="off" onkeypress="if(event.key === 'Enter') handleCopyInput()">
+            <button onclick="handleCopyInput()" style="width: 80px; background: #27ae60; color:white; border:none; border-radius:10px;">发送</button>
+        </div>
+        <div id="copyProgress" style="margin-top: 10px; font-weight: bold; color: #27ae60;">进度：0 / 5</div>
+    </div>
+</div>
+
     </div>
 
     <!-- ================= 页面 3：互动聊天 ================= -->
