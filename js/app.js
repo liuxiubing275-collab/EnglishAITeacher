@@ -490,3 +490,52 @@ function saveApiKey() {
     const k = document.getElementById('siliconApiKey').value.trim();
     localStorage.setItem('silicon_api_key', k); alert("保存成功"); toggleSettings();
 }
+
+// ================= [10] AI 聊天语音识别 (补全功能) =================
+
+function startChatVoice() {
+    // 1. 检查浏览器兼容性
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        return alert("您的浏览器不支持语音识别，请在 iPhone Safari 或 Chrome 浏览器中使用。");
+    }
+
+    const recognition = new SpeechRecognition();
+    
+    // 2. 根据当前模式自动切换识别语言
+    // 如果是英语私教模式，听英文；如果是中文助手模式，听中文
+    recognition.lang = (currentChatMode === 'eng') ? 'en-US' : 'zh-CN';
+    
+    const inputEl = document.getElementById('chatMsgInput');
+    const originalPlaceholder = inputEl.placeholder;
+    
+    // 3. 开始录音时的 UI 反馈
+    inputEl.placeholder = "🎤 正在聆听，请说话...";
+    recognition.start();
+
+    // 4. 识别成功处理
+    recognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript;
+        inputEl.value = transcript; // 将识别出的文字填入输入框
+        inputEl.placeholder = originalPlaceholder;
+        
+        // 自动触发发送逻辑
+        sendChatMessage();
+    };
+
+    // 5. 错误处理
+    recognition.onerror = function(event) {
+        console.error("语音识别错误:", event.error);
+        inputEl.placeholder = "⚠️ 没听清，请重试...";
+        setTimeout(() => {
+            inputEl.placeholder = originalPlaceholder;
+        }, 2000);
+    };
+
+    // 6. 结束录音
+    recognition.onend = function() {
+        if (inputEl.placeholder.includes("正在聆听")) {
+            inputEl.placeholder = originalPlaceholder;
+        }
+    };
+}
