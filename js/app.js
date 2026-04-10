@@ -539,3 +539,92 @@ function startChatVoice() {
         }
     };
 }
+
+// ================= [补全功能] 11词成文逻辑 =================
+
+async function generateGroupStory() {
+    // 1. 获取 API Key
+    const apiKey = localStorage.getItem('silicon_api_key');
+    if (!apiKey) {
+        alert("请先在‘互动聊天’版块设置并保存 API Key！");
+        return;
+    }
+
+    // 2. 获取当前组单词
+    const bounds = getGroupBounds();
+    let currentWords = [];
+    for (let i = bounds.start; i <= bounds.end; i++) {
+        if (wordList[i] && wordList[i].en) {
+            currentWords.push(wordList[i].en);
+        }
+    }
+
+    if (currentWords.length === 0) {
+        alert("当前组没有单词，请先选择一个单词组。");
+        return;
+    }
+
+    // 3. UI 状态
+    const storyArea = document.getElementById('groupStoryArea');
+    const storyContent = document.getElementById('groupStoryContent');
+    if (!storyArea) {
+        alert("HTML中缺少 id='groupStoryArea' 的显示区域");
+        return;
+    }
+
+    storyArea.style.display = 'block';
+    storyContent.innerText = "正在构思故事...";
+    storyArea.scrollIntoView({ behavior: 'smooth' });
+
+    // 4. 发送 API 请求
+    const prompt = `使用以下 10 个单词编写一段连贯的英语短文（约 100 词），单词需加粗。结尾附带中文翻译，中间用 --- 分隔：[${currentWords.join(", ")}]`;
+
+    try {
+        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'Qwen/Qwen2.5-7B-Instruct',
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.7
+            })
+        });
+
+        const data = await response.json();
+        const fullText = data.choices[0].message.content;
+
+        // 5. 渲染到界面
+        storyContent.innerHTML = fullText
+            .replace(/\n/g, '<br>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#e67e22;">$1</strong>');
+
+    } catch (error) {
+        console.error(error);
+        storyContent.innerText = "⚠️ 生成失败，请检查网络或 API Key。";
+    }
+}
+
+// 联动：同步到文章板块
+function transferGroupStoryToArticle() {
+    const storyBox = document.getElementById('groupStoryContent');
+    if (!storyBox || storyBox.innerText.includes("正在构思")) return;
+
+    const parts = storyBox.innerText.split('---');
+    currentArticleText = parts[0].trim();
+    
+    switchTab('articles');
+    
+    const articleDisplay = document.getElementById('articleDisplay');
+    articleDisplay.innerHTML = `
+        <div style="border-left: 4px solid #8e44ad; padding-left: 10px; background: #fdf6ff;">
+            <p style="color: #8e44ad; font-weight: bold;">✨ AI 单词挑战故事：</p>
+            <p>${currentArticleText}</p>
+            <p style="color: #7f8c8d; font-size: 14px;">${parts[1] || ""}</p>
+        </div>
+    `;
+    quitArticleDictation();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
