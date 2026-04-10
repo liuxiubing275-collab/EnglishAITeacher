@@ -298,25 +298,51 @@ async function generateRevisionStory() {
         btn.innerText = "重新生成故事";
     } catch (e) { box.innerText = "失败"; btn.innerText = "重试"; }
 }
-
-async function generateGroupMemoryPalace() {
-    const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) return alert("请保存 Key");
+// ================= 快速提取全组预存记忆宫殿 (唯一保留版本) =================
+function generateGroupMemoryPalace() {
     const bounds = getGroupBounds();
-    let words = []; for(let i=bounds.start; i<=bounds.end; i++) if(wordList[i]) words.push(`${wordList[i].en}(${wordList[i].zh})`);
-    const box = document.getElementById('palaceContent');
-    document.getElementById('memoryPalaceArea').style.display="block";
-    box.innerText = "正在构建记忆宫殿...";
-    const prompt = `你是记忆宫殿专家，为这10个词分别提供荒诞夸张的视觉钩子：[${words.join(", ")}]。格式：1. 单词：描述`;
-    try {
-        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'Qwen/Qwen2.5-7B-Instruct', messages: [{role:"user", content:prompt}] })
-        });
-        const data = await res.json();
-        box.innerHTML = data.choices[0].message.content.replace(/\n/g, '<br>').replace(/(\d+\.)/g, '<b style="color:#e67e22;">$1</b>');
-    } catch (e) { box.innerText = "失败"; }
+    if (wordList.length === 0) {
+        alert("词库尚未加载，请稍后再试。");
+        return;
+    }
+
+    const palaceArea = document.getElementById('memoryPalaceArea');
+    const palaceContent = document.getElementById('palaceContent');
+    
+    if (!palaceArea || !palaceContent) {
+        alert("页面缺少显示区域（memoryPalaceArea）");
+        return;
+    }
+
+    let htmlContent = "";
+    let foundCount = 0;
+
+    for (let i = bounds.start; i <= bounds.end; i++) {
+        const wordObj = wordList[i];
+        if (wordObj) {
+            foundCount++;
+            // 直接读取你在 loadAllData 时存入 wordObj.hook 的内容
+            const hookText = wordObj.hook || "（该词暂无预存钩子）";
+            
+            htmlContent += `
+                <div style="margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px dashed #eee;">
+                    <strong style="color: #d35400;">${foundCount}. ${wordObj.en}</strong> 
+                    <span style="color: #7f8c8d; font-size: 0.9em;">[${wordObj.zh}]</span>
+                    <div style="margin-top: 4px; color: #333; line-height: 1.5;">
+                        ${hookText.replace('[💡记忆宫殿', '<b style="color:#2980b9;">[💡记忆宫殿</b>')}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    if (foundCount > 0) {
+        palaceArea.style.display = 'block';
+        palaceContent.innerHTML = htmlContent;
+        palaceArea.scrollIntoView({ behavior: 'smooth' });
+    } else {
+        alert("当前选中的组没有找到单词。");
+    }
 }
 
 function transferStoryToArticle() {
@@ -769,97 +795,3 @@ function calculateReviewGroups() {
     }
 }
 
-// ================= 实时生成全组记忆宫殿逻辑 =================
-
-async function generateGroupMemoryPalace() {
-    // 1. 获取 API Key
-    const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) {
-        alert("请先在‘互动聊天’版块设置并保存 API Key！");
-        return;
-    }
-
-    // 2. 获取当前组单词
-    const bounds = getGroupBounds();
-    let wordsToProcess = [];
-    for (let i = bounds.start; i <= bounds.end; i++) {
-        if (wordList[i]) {
-            wordsToProcess.push(`${wordList[i].en} (${wordList[i].zh})`);
-        }
-    }
-
-    if (wordsToProcess.length === 0) {
-        alert("请先选择一个具体的单词组。");
-        return;
-    }
-
-    // 3. UI 状态切换
-    const palaceArea = document.getElementById('memoryPalaceArea');
-    const palaceContent = document.getElementById('palaceContent');
-    palaceArea.style.display = 'block';
-    palaceContent.innerHTML = `<p style="color:#e67e22; font-weight:bold;">⏳ AI 正在走进你的家，并在 10 个位点摆放单词...</p>`;
-    palaceArea.scrollIntoView({ behavior: 'smooth' });
-
-    // 4. 定义你家的 10 个固定位点（Prompt 核心）
-    const myHomeLayout = [
-        "1. 进门右侧上二楼的楼梯",
-        "2. 进门左侧1.2米高的白色鞋柜",
-        "3. 大长沙发后面半米处的餐桌",
-        "4. 客厅中央竖向摆放的大长沙发",
-        "5. 大长沙发正前方的茶几",
-        "6. 电视墙下2米长的电视柜",
-        "7. 墙上挂着的65寸索尼大电视",
-        "8. 5.8米挑高顶中央的水晶大吊灯",
-        "9. 客厅西面4米长的玻璃移门",
-        "10. 阳台上的沙发躺椅"
-    ];
-
-    // 5. 构建 Prompt
-    const prompt = `你是一位记忆宫殿导师。请为以下 10 个英语单词创作一套全新的视觉记忆方案。
-    
-    【核心场景：用户的家】
-    你必须严格按照以下 10 个位点顺序摆放单词：
-    ${myHomeLayout.join("\n")}
-
-    【待处理单词清单】
-    ${wordsToProcess.map((w, i) => `位点${i+1}: ${w}`).join("\n")}
-
-    【要求】
-    1. 每个单词必须与其对应的家具位点产生荒谬、生动、具有视觉冲击力的联系。
-    2. 描述要具体，不仅仅是“看到”，而是有动作、颜色或古怪的事情发生。
-    3. 严格按此格式输出：
-    1. [位置名称] 单词：描述内容
-    2. [位置名称] 单词：描述内容...
-    （禁止输出任何前言和结尾，直接输出清单）`;
-
-    // 6. 调用 API
-    try {
-        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'Qwen/Qwen2.5-7B-Instruct',
-                messages: [{ role: "user", content: prompt }],
-                temperature: 0.8 // 稍微调高随机性，让画面更荒诞
-            })
-        });
-
-        if (!response.ok) throw new Error("API 请求失败");
-
-        const data = await response.json();
-        const result = data.choices[0].message.content;
-
-        // 7. 渲染结果并美化
-        palaceContent.innerHTML = result
-            .replace(/\n/g, '<br>')
-            .replace(/\[(.*?)\]/g, '<b style="color:#2980b9;">[$1]</b>') // 位置名变蓝色
-            .replace(/(\d+\.)/g, '<strong style="color:#d35400;">$1</strong>'); // 序号变橙色
-
-    } catch (error) {
-        console.error(error);
-        palaceContent.innerText = "⚠️ 宫殿构建失败，请检查网络或 API Key。";
-    }
-}
