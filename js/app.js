@@ -14,6 +14,15 @@ let currentSentenceIdx = 0;
 let sentenceReplayTimer = null;
 let currentChatMode = 'eng';
 let chatHistory = [];
+// 获取上次选择的课本，如果没有则用默认
+let currentBookPath = localStorage.getItem('selected_book_path') || 'default';
+
+// 在 window.onload 中设置下拉框初始值
+const originalOnload = window.onload;
+window.onload = function() {
+    if (originalOnload) originalOnload();
+    document.getElementById('bookSelect').value = currentBookPath;
+};
 
 // ================= [2] 初始化与数据加载 =================
 window.onload = function() {
@@ -25,6 +34,7 @@ window.onload = function() {
         document.getElementById('apiKeyStatus').style.color = "#27ae60";
         document.getElementById('settingsCard').style.display = 'none';
     }
+    switchTab('words'); 
     switchChatMode('eng');
     updateDailyDashboard();
     // 实时更新看板状态
@@ -37,9 +47,18 @@ window.onload = function() {
 };
 
 async function loadAllData() {
+    // 确定文件路径
+    let wordPath = 'NewWords.txt';
+    let textPath = 'Texts.txt';
+
+    if (currentBookPath !== 'default') {
+        wordPath = `books/${currentBookPath}/NewWords.txt`;
+        textPath = `books/${currentBookPath}/Texts.txt`;
+    }
+
     try {
-        // 加载单词 (3行格式)
-        const wRes = await fetch('NewWords.txt');
+        // 1. 加载单词
+        const wRes = await fetch(wordPath + '?t=' + Date.now()); // 加随机数防止缓存
         if (wRes.ok) {
             const wText = await wRes.text();
             const rawLines = wText.split(/\r?\n/).map(w => w.trim()).filter(w => w.length > 0);
@@ -53,10 +72,14 @@ async function loadAllData() {
                     hook: rawLines[i + 2] || "暂无记忆钩子。"
                 });
             }
-            if (wordList.length > 0) { initGroupSelect(); updateWordDisplay(); }
+            if (wordList.length > 0) {
+                initGroupSelect();
+                updateWordDisplay();
+            }
         }
-        // 加载文章
-        const aRes = await fetch('Texts.txt');
+
+        // 2. 加载文章
+        const aRes = await fetch(textPath + '?t=' + Date.now());
         if (aRes.ok) {
             const aText = await aRes.text();
             const allLines = aText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
@@ -66,17 +89,64 @@ async function loadAllData() {
             }
             if (articleList.length > 0) initArticleSelect();
         }
-    } catch (e) { console.error("数据加载失败", e); }
+        
+        // 3. 刷新看板
+        updateDailyDashboard();
+        
+    } catch (e) {
+        console.error("切换课本失败:", e);
+        alert("无法加载该课本文件，请检查文件夹是否存在。");
+    }
 }
 
-// ================= [3] 单词核心控制 (解决 restartWords 等报错) =================
+function changeBook() {
+    const select = document.getElementById('bookSelect');
+    currentBookPath = select.value;
+    
+    // 存入本地，下次打开还是这本课本
+    localStorage.setItem('selected_book_path', currentBookPath);
+    
+    // 重置当前单词索引
+    currentWordIndex = 0;
+    
+    // 重新加载数据
+    loadAllData();
+    
+    // 视觉反馈：清空之前的记忆宫殿和 AI 故事区
+    if(document.getElementById('memoryPalaceArea')) document.getElementById('memoryPalaceArea').style.display = 'none';
+    if(document.getElementById('groupStoryArea')) document.getElementById('groupStoryArea').style.display = 'none';
+}
+
+// =========== [3] 单词核心控制 (解决 restartWords 等报错) ===============
 function initGroupSelect() {
     const select = document.getElementById('groupSelect');
-    select.innerHTML = `<option value="all">📚 全部练习 (${wordList.length} 词)</option>`;
+    if (!select) return;
+
+    // 1. 先清空下拉框
+    select.innerHTML = '';
+
+    // 2. 计算总组数（每组10个词）
     const groupCount = Math.ceil(wordList.length / 10);
+
+    // 3. 先循环添加具体的组（第1组，第2组...）
     for (let i = 0; i < groupCount; i++) {
-        select.add(new Option(`📦 第 ${i + 1} 组 (${i*10+1}-${Math.min((i+1)*10, wordList.length)})`, i));
+        const start = i * 10 + 1;
+        const end = Math.min((i + 1) * 10, wordList.length);
+        
+        let option = document.createElement('option');
+        option.value = i;
+        option.text = `📦 第 ${i + 1} 组 (${start} - ${end})`;
+        select.appendChild(option);
     }
+
+    // 4. 最后添加“全部练习”选项
+    let allOption = document.createElement('option');
+    allOption.value = 'all';
+    allOption.text = `📚 全部练习 (共 ${wordList.length} 词)`;
+    select.appendChild(allOption);
+
+    // 5. 默认选中第一组（索引为0），而不是最后一个“全部练习”
+    select.value = 0; 
 }
 
 function getGroupBounds() {
@@ -88,21 +158,68 @@ function getGroupBounds() {
 }
 
 function updateWordDisplay() {
+
+    const wordEl = document.getElementById('targetWord');
+    // 增加一个淡入效果
+    wordEl.style.opacity = 0;
+    wordEl.style.transform = "translateY(10px)";
+    
+    setTimeout(() => {
+        // 原有的更新文字逻辑
+        document.getElementById('targetWord').innerText = wordList[currentWordIndex].en;
+        
+        // 执行动画
+        wordEl.style.transition = "all 0.4s ease";
+        wordEl.style.opacity = 1;
+        wordEl.style.transform = "translateY(0)";
+    }, 50);
+    
+
     if (wordList.length === 0) return;
     const bounds = getGroupBounds();
     const currentWord = wordList[currentWordIndex];
+
+    // 1. 更新单词和计数器
     document.getElementById('targetWord').innerText = currentWord.en;
     document.getElementById('wordCounter').innerText = `${currentWordIndex - bounds.start + 1} / ${bounds.total}`;
-    document.getElementById('chineseMeaning').innerText = currentWord.zh;
-    document.getElementById('chineseMeaning').style.display = 'none';
+    
+    // 2. 更新中文释义
+    const chineseEl = document.getElementById('chineseMeaning');
+    chineseEl.innerText = currentWord.zh;
+    chineseEl.style.display = 'none';
 
+    // 3. 【核心修改处】：拆分例句与翻译并换行
     const exBox = document.getElementById('exampleSentence');
-    exBox.innerHTML = `<div style="margin-bottom:8px;">${currentWord.ex}</div><div style="color:#8e44ad; font-weight:bold; font-size:14px; border-top:1px dashed #ddd; padding-top:5px;">🏰 ${currentWord.hook}</div>`;
-    exBox.style.display = 'none';
-    document.getElementById('wordResult').innerText = "";
+    let exHtml = "";
+    
+    // 逻辑：寻找“中文：”或“  中文：”作为分隔符
+    if (currentWord.ex.includes("中文：")) {
+        const parts = currentWord.ex.split("中文：");
+        exHtml = `
+            <div style="color: #2c3e50; font-weight: 500; margin-bottom: 8px; line-height: 1.4;">
+                ${parts[0].trim()}
+            </div>
+            <div style="color: #7f8c8d; font-size: 0.95em; border-top: 1px solid #f0f0f0; padding-top: 8px;">
+                <span style="background: #eee; padding: 2px 5px; border-radius: 4px; font-size: 0.8em; margin-right: 5px;">译</span>
+                ${parts[1].trim()}
+            </div>
+        `;
+    } else {
+        exHtml = `<div style="color: #2c3e50;">${currentWord.ex}</div>`;
+    }
+
+    exBox.innerHTML = exHtml;
+    exBox.style.display = 'none'; // 默认隐藏
+
+    // 4. 重置状态
+    document.getElementById('wordResult').innerText = ""; 
     document.getElementById('dictationResult').innerText = "";
     document.getElementById('dictationInput').value = "";
-    document.getElementById('targetWord').style.filter = 'none';
+    
+    // 非测验模式下确保单词清晰
+    if (document.getElementById('dictationGroupMode').style.display === 'none') {
+        document.getElementById('targetWord').style.filter = 'none';
+    }
 }
 
 function changeGroup() { currentWordIndex = getGroupBounds().start; updateWordDisplay(); }
@@ -130,21 +247,44 @@ function toggleMeaning() {
 }
 
 function showAndPlayExample() {
-    document.getElementById('exampleSentence').style.display = 'block';
-    const enPart = wordList[currentWordIndex].ex.replace(/[^\x00-\xff]/g, '').trim();
-    if (enPart) {
+    const exBox = document.getElementById('exampleSentence');
+    exBox.style.display = 'block'; 
+    
+    const currentWord = wordList[currentWordIndex];
+    
+    // 【优化逻辑】：只提取“中文：”之前的英文部分进行朗读
+    let speechText = currentWord.ex;
+    if (speechText.includes("中文：")) {
+        speechText = speechText.split("中文：")[0];
+    }
+
+    // 过滤掉可能残余的特殊字符，执行朗读
+    const englishOnly = speechText.replace(/[^\x00-\xff]/g, '').trim();
+    if (englishOnly.length > 0) {
         window.speechSynthesis.cancel();
-        activeUtterance = new SpeechSynthesisUtterance(enPart);
-        activeUtterance.lang = 'en-US';
+        activeUtterance = new SpeechSynthesisUtterance(englishOnly);
+        activeUtterance.lang = 'en-US'; 
         window.speechSynthesis.speak(activeUtterance);
     }
 }
 
 function readTargetWord() {
+    // 1. 先停止之前的播放
     window.speechSynthesis.cancel();
-    activeUtterance = new SpeechSynthesisUtterance(wordList[currentWordIndex].en);
-    activeUtterance.lang = 'en-US';
-    window.speechSynthesis.speak(activeUtterance);
+    
+    // 2. 【核心修复】：强制去掉模糊效果
+    // 这样即使单词之前因为 toggleBlur 变模糊了，点播放时也会瞬间变清晰
+    const wordEl = document.getElementById('targetWord');
+    if (wordEl) {
+        wordEl.style.filter = 'none';
+    }
+
+    // 3. 执行朗读
+    if (wordList[currentWordIndex]) {
+        activeUtterance = new SpeechSynthesisUtterance(wordList[currentWordIndex].en);
+        activeUtterance.lang = 'en-US';
+        window.speechSynthesis.speak(activeUtterance);
+    }
 }
 
 function startListeningForWord() {
@@ -179,20 +319,40 @@ let groupTestCurrentIndex = 0;
 let groupTestBounds = null;
 
 function startGroupTest() {
-    groupTestBounds = getGroupBounds(); groupTestAnswers = []; groupTestCurrentIndex = 0;
+    if (wordList.length === 0) return;
+    
+    // 1. 设置测验范围
+    groupTestBounds = getGroupBounds(); 
+    groupTestAnswers = []; 
+    groupTestCurrentIndex = 0;
+    
+    // 2. UI 切换
     document.getElementById('dictationSingleMode').style.display = 'none';
     document.getElementById('dictationGroupMode').style.display = 'block';
     document.getElementById('dictationResultMode').style.display = 'none';
+    
+    // 3. 【核心修改】：测验模式必须强制模糊单词
+    const wordEl = document.getElementById('targetWord');
+    if (wordEl) {
+        wordEl.style.filter = 'blur(8px)';
+    }
+
+    // 4. 播放第一个单词
     playTestWord();
 }
 
 function playTestWord() {
     const word = wordList[groupTestBounds.start + groupTestCurrentIndex].en;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(word); u.lang = 'en-US';
+    const u = new SpeechSynthesisUtterance(word); 
+    u.lang = 'en-US';
     window.speechSynthesis.speak(u);
-    document.getElementById('groupTestProgress').innerText = `测验中: ${groupTestCurrentIndex+1} / ${groupTestBounds.total}`;
-    setTimeout(()=>document.getElementById('groupTestInput').focus(), 200);
+    
+    // 确保测验播放时，单词依然是模糊的
+    document.getElementById('targetWord').style.filter = 'blur(8px)';
+    
+    document.getElementById('groupTestProgress').innerText = `测验中: ${groupTestCurrentIndex + 1} / ${groupTestBounds.total}`;
+    setTimeout(() => document.getElementById('groupTestInput').focus(), 200);
 }
 
 function submitTestWord() {
@@ -222,7 +382,12 @@ function quitGroupTest() {
     document.getElementById('dictationGroupMode').style.display = 'none';
     document.getElementById('dictationResultMode').style.display = 'none';
     document.getElementById('dictationSingleMode').style.display = 'block';
-    document.getElementById('targetWord').style.filter = 'none';
+    
+    // 【核心修复】：退出测验模式，强制还原单词清晰度
+    const wordEl = document.getElementById('targetWord');
+    if (wordEl) {
+        wordEl.style.filter = 'none';
+    }
 }
 
 // ================= [5] 1247 看板逻辑 =================
@@ -278,25 +443,69 @@ function jumpToGroup(idx) { document.getElementById('groupSelect').value = idx; 
 // ================= [6] AI 故事与宫殿生成 =================
 async function generateRevisionStory() {
     const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) return alert("请保存 Key");
-    const bounds = getGroupBounds();
-    let words = []; for(let i=bounds.start; i<=bounds.end; i++) if(wordList[i]) words.push(wordList[i].en);
+    if (!apiKey) return alert("请先在设置中保存 API Key");
+
+    // 1. 自动从历史记录中抓取符合 1,3,6 天规则的所有复习单词
+    let history = JSON.parse(localStorage.getItem('eng_study_history') || '{}');
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    let selectedWords = [];
+    let reviewGroupNums = [];
+
+    for (let gNum in history) {
+        const dateParts = history[gNum].split('-');
+        const studyDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+        const diffDays = Math.round((today.getTime() - studyDate.getTime()) / 86400000);
+
+        // 如果符合 1, 4, 7 天后的复习节点
+        if ([1, 3, 6].includes(diffDays)) {
+            reviewGroupNums.push(gNum);
+            let start = (parseInt(gNum) - 1) * 10;
+            let end = Math.min(start + 9, wordList.length - 1);
+            for (let i = start; i <= end; i++) {
+                if(wordList[i]) selectedWords.push(wordList[i].en);
+            }
+        }
+    }
+
+    // 2. 如果今天没有复习任务，则针对当前选中的组生成
+    if (selectedWords.length === 0) {
+        const val = document.getElementById('groupSelect').value;
+        if (val === 'all') return alert("今日暂无复习任务，请先选择一个具体的组进行预习/学习。");
+        
+        let start = parseInt(val) * 10;
+        let end = Math.min(start + 9, wordList.length - 1);
+        for (let i = start; i <= end; i++) {
+            if(wordList[i]) selectedWords.push(wordList[i].en);
+        }
+    }
+
+    // 3. UI 反馈
     const btn = document.getElementById('btnGenStory');
     const box = document.getElementById('aiStoryContent');
-    btn.innerText = "⏳ AI 创作中..."; box.style.display="block"; box.innerText="正在构思故事...";
-    const prompt = `用这些单词写一段励志短文并加粗，末尾附翻译：[${words.join(", ")}]`;
+    btn.innerText = "⏳ AI 正在针对任务编写故事...";
+    box.style.display = "block";
+    box.innerHTML = "正在串联单词: " + selectedWords.slice(0, 5).join(", ") + "...";
+
+    // 4. API 请求 (Prompt 逻辑)
+    const prompt = `你是一位英语私教。请使用以下单词编写一段连贯、地道的英语故事（约150词）。要求单词加粗显示，并在文末附带中文翻译（用 --- 分隔）：[${selectedWords.join(", ")}]`;
+
     try {
-        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'Qwen/Qwen2.5-7B-Instruct', messages: [{role:"user", content:prompt}] })
+            body: JSON.stringify({ model: 'Qwen/Qwen2.5-7B-Instruct', messages: [{role:"user", content: prompt}], temperature: 0.7 })
         });
-        const data = await res.json();
+        const data = await response.json();
         const content = data.choices[0].message.content;
-        box.innerHTML = content.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        box.innerHTML = content.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b style="color:#e67e22;">$1</b>');
         document.getElementById('btnShadowStory').style.display = 'block';
-        btn.innerText = "重新生成故事";
-    } catch (e) { box.innerText = "失败"; btn.innerText = "重试"; }
+        btn.innerText = "🪄 重新生成 AI 故事";
+    } catch (e) {
+        box.innerHTML = "❌ 生成失败，请检查 API Key 或网络。";
+        btn.innerText = "🪄 生成今日复习词汇 AI 短文";
+    }
 }
 // ================= 快速提取全组预存记忆宫殿 (唯一保留版本) =================
 function generateGroupMemoryPalace() {
@@ -342,6 +551,20 @@ function generateGroupMemoryPalace() {
         palaceArea.scrollIntoView({ behavior: 'smooth' });
     } else {
         alert("当前选中的组没有找到单词。");
+    }
+}
+
+// 关闭记忆宫殿显示区域，并让页面回滚到单词练习区
+function closeMemoryPalace() {
+    const palaceArea = document.getElementById('memoryPalaceArea');
+    if (palaceArea) {
+        palaceArea.style.display = 'none';
+        
+        // 【优化体验】：自动滚动回单词练习的核心区域，方便直接开始“盲听拼写”
+        const wordDisplay = document.getElementById('page-words');
+        if (wordDisplay) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     }
 }
 
@@ -575,12 +798,40 @@ async function sendChatMessage() {
 }
 
 // ================= [9] 辅助功能 =================
-function switchTab(t) {
-    document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('page-'+t).classList.add('active');
-    document.getElementById('btn-'+t).classList.add('active');
+function switchTab(tabName) {
+    // 1. 切换页面部分的显示
+    document.querySelectorAll('.page-section').forEach(page => {
+        page.classList.remove('active');
+        // 显式设置 display: none 确保彻底隐藏
+        page.style.display = 'none'; 
+    });
+    
+    // 2. 切换导航按钮高亮
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    
+    // 3. 显示当前选中的页面
+    const activePage = document.getElementById('page-' + tabName);
+    const activeBtn = document.getElementById('btn-' + tabName);
+    
+    if (activePage) {
+        activePage.classList.add('active');
+        activePage.style.display = 'block';
+    }
+    if (activeBtn) activeBtn.classList.add('active');
+
+    // 4. 【关键修复】：控制课本选择栏
+    const bookSelector = document.getElementById('bookSelectorContainer');
+    if (bookSelector) {
+        // 如果进入 chat 板块，强制隐藏；否则显示
+        if (tabName === 'chat') {
+            bookSelector.setAttribute('style', 'display: none !important');
+        } else {
+            // 恢复原本的样式
+            bookSelector.setAttribute('style', 'margin-bottom: 15px; background: #e3e3e8; border-radius: 12px; padding: 10px; border: none; display: block;');
+        }
+    }
 }
+
 function appendChatBubble(t, s) {
     const id = "msg-" + Date.now();
     const div = document.createElement('div');
@@ -736,213 +987,365 @@ function transferGroupStoryToArticle() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// ================= [补全功能] 1247 手动计算复习计划 =================
 
-function calculateReviewGroups() {
-    const inputVal = document.getElementById('currentGroupInput').value;
-    if (!inputVal) {
-        alert("请输入你今天正在学习的组号（例如：7）");
-        return;
-    }
-    
-    const N = parseInt(inputVal);
-    const reviewOffsets = [1, 3, 6]; // 1-2-4-7 法则的偏移量
-    const resultArea = document.getElementById('reviewResultArea');
-    const linksSpan = document.getElementById('reviewLinks');
-    const aiStoryArea = document.getElementById('aiStoryArea');
-    
-    if (!resultArea || !linksSpan) {
-        console.error("HTML 中缺少复习结果显示区域");
-        return;
-    }
+// ======================================================
+// ================= 每日翻译挑战逻辑系统 =================
+// ======================================================
 
-    let reviewGroups = [];
-    reviewOffsets.forEach(offset => {
-        let target = N - offset;
-        if (target >= 1) {
-            reviewGroups.push(target);
-        }
-    });
+let translationTasks = []; // 存储题目：{cn: "", userEn: "", correctEn: ""}
+let copySentenceQueue = []; // 需要抄写的句子队列
+let currentCopyCount = 0;  // 当前句子的抄写次数进度
 
-    if (reviewGroups.length === 0) {
-        linksSpan.innerHTML = "<span style='color:#7f8c8d'>前期积累中，暂无复习任务。</span>";
-    } else {
-        linksSpan.innerHTML = "";
-        // 倒序排列，让最近的组号排在前面
-        reviewGroups.reverse().forEach(gNum => {
-            const link = document.createElement('a');
-            link.href = "#";
-            link.innerText = `第 ${gNum} 组`;
-            // 设置明显的黄色链接样式，呼应看板风格
-            link.style = "color: #f39c12; font-weight: bold; text-decoration: underline; margin-right: 15px; cursor: pointer;";
-            link.onclick = (e) => {
-                e.preventDefault();
-                jumpToGroup(gNum - 1); // 索引从 0 开始
-            };
-            linksSpan.appendChild(link);
-        });
-    }
-
-    // 显示结果区域和 AI 故事生成区域
-    resultArea.style.display = 'block';
-    if (aiStoryArea) aiStoryArea.style.display = 'block';
-    
-    // 自动清理之前的 AI 故事内容，防止混淆
-    const storyContent = document.getElementById('aiStoryContent');
-    if (storyContent) {
-        storyContent.style.display = 'none';
-        storyContent.innerHTML = "";
-    }
-}
-
-// ================= 每日翻译挑战逻辑 =================
-
-let currentTasks = []; // 存储当前的3个题目和答案
-let copyTaskQueue = []; // 需要抄写的句子队列
-let copyCounter = 0;
-
-// 1. 获取挑战题目
+// 1. 开始挑战：AI 出题
 async function startTranslationChallenge() {
     const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) return alert("请先设置 API Key");
+    if (!apiKey) return alert("请先在设置中保存 API Key");
 
     // 获取当前组单词作为出题参考
     const bounds = getGroupBounds();
-    let words = wordList.slice(bounds.start, bounds.end + 1).map(w => w.en);
+    let words = [];
+    for (let i = bounds.start; i <= bounds.end; i++) {
+        if (wordList[i]) words.push(wordList[i].en);
+    }
 
+    // UI 切换到加载状态
     document.getElementById('transSetup').style.display = 'none';
     document.getElementById('transWorking').style.display = 'block';
     const qBox = document.getElementById('transQuestions');
-    qBox.innerHTML = "<p>正在联络 AI 出题...</p>";
+    qBox.innerHTML = "<p style='text-align:center; color:#8e44ad;'>正在联络 AI 老师针对你的单词进度出题...</p>";
 
-    const prompt = `你是一位英语老师。请根据以下单词：[${words.join(", ")}]，编写 3 个简单的中文句子要求用户翻译成英文。
-    输出格式严格如下：
-    1. 中文句子1
-    2. 中文句子2
-    3. 中文句子3`;
+    const prompt = `你是一位英语老师。请根据以下 10 个单词：[${words.join(", ")}]，编写 3 个简单的日常中文句子要求用户翻译成英文。
+    要求：
+    1. 句子要生活化。
+    2. 必须包含列表中的单词含义。
+    3. 格式严格如下（每行一句）：
+    1. [中文句子1]
+    2. [中文句子2]
+    3. [中文句子3]`;
 
     try {
-        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'Qwen/Qwen2.5-7B-Instruct', messages: [{role:"user", content: prompt}] })
+            body: JSON.stringify({
+                model: 'Qwen/Qwen2.5-7B-Instruct',
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.7
+            })
         });
-        const data = await res.json();
-        const lines = data.choices[0].message.content.trim().split('\n').filter(l => l.length > 5);
+        const data = await response.json();
+        const content = data.choices[0].message.content;
         
-        currentTasks = lines.map(l => ({ cn: l.replace(/^\d+\.\s*/, ''), userEn: '', correctEn: '' }));
-        
-        qBox.innerHTML = currentTasks.map((t, i) => `
-            <div style="margin-bottom:15px;">
-                <p><b>Q${i+1}:</b> ${t.cn}</p>
-                <input type="text" class="user-trans-input" data-idx="${i}" placeholder="输入你的英文翻译...">
+        // 解析题目
+        const lines = content.match(/\[(.*?)\]/g) || [];
+        if (lines.length < 3) throw new Error("解析失败");
+
+        translationTasks = lines.map(l => ({ 
+            cn: l.replace(/[\[\]]/g, ''), 
+            userEn: '', 
+            correctEn: '' 
+        }));
+
+        qBox.innerHTML = translationTasks.map((t, i) => `
+            <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
+                <p><b>句 ${i+1}:</b> ${t.cn}</p>
+                <input type="text" class="trans-user-input" data-idx="${i}" placeholder="请翻译成英文...">
             </div>
         `).join('');
-    } catch (e) { alert("出题失败，请重试"); }
+
+    } catch (e) {
+        alert("出题失败，请重试");
+        document.getElementById('transSetup').style.display = 'block';
+        document.getElementById('transWorking').style.display = 'none';
+    }
 }
 
-// 2. AI 批改
 async function gradeTranslations() {
     const apiKey = localStorage.getItem('silicon_api_key');
-    const inputs = document.querySelectorAll('.user-trans-input');
+    if (!apiKey) return alert("请先设置 API Key");
+
+    const inputs = document.querySelectorAll('.trans-user-input');
     inputs.forEach(input => {
         const idx = input.getAttribute('data-idx');
-        currentTasks[idx].userEn = input.value.trim();
+        translationTasks[idx].userEn = input.value.trim();
     });
 
-    document.getElementById('btnSubmitTrans').innerText = "⏳ AI 正在深度批改...";
+    const btn = document.getElementById('btnSubmitTrans');
+    btn.innerText = "⏳ AI 老师正在深度批改...";
+    btn.disabled = true;
+
+    // 强化 Prompt：改用 <s1> 这种标签格式，AI 极难出错
+    const prompt = `你是一位专业的英语审校专家。请批改以下三句中译英。
+    ${translationTasks.map((t, i) => `题${i+1}：中文 [${t.cn}]，用户翻译 [${t.userEn}]`).join('\n')}
     
-    const prompt = `你是英语私教。请批改以下翻译。
-    ${currentTasks.map((t,i) => `第${i+1}句 中文：${t.cn} 用户翻译：${t.userEn}`).join('\n')}
-    
-    要求：请给出最地道的正确翻译。
-    输出格式严格如下：
-    1. [正确答案1]
-    2. [正确答案2]
-    3. [正确答案3]`;
+    输出要求：
+    1. 请给出最地道、最简洁、符合母语习惯的正确答案。
+    2. 严格按以下标签格式输出，不要有任何解释：
+    <s1>第一句的正确地道英文</s1>
+    <s2>第二句的正确地道英文</s2>
+    <s3>第三句的正确地道英文</s3>`;
 
     try {
-        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'Qwen/Qwen2.5-7B-Instruct', messages: [{role:"user", content: prompt}] })
+            body: JSON.stringify({
+                model: 'Qwen/Qwen2.5-7B-Instruct',
+                messages: [{ role: "system", content: "你是一个只输出地道翻译结果的机器人。" },
+                           { role: "user", content: prompt }],
+                temperature: 0.2 // 降低随机性，确保格式稳定
+            })
         });
-        const data = await res.json();
-        const correctLines = data.choices[0].message.content.trim().split('\n').filter(l => l.includes('['));
+        const data = await response.json();
+        const aiRes = data.choices[0].message.content;
 
-        // 3. 渲染并排对比
-        const comparisonBox = document.getElementById('transComparisonArea');
-        let html = '<h3 style="color:#e67e22;">对照批改结果：</h3>';
+        // 稳健提取标签内容的工具函数
+        const extractTag = (tag) => {
+            const match = aiRes.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+            return match ? match[1].trim() : "";
+        };
+
+        const resBox = document.getElementById('transResult');
+        const compareArea = document.getElementById('transComparisonArea');
+        resBox.style.display = 'block';
         
-        copyTaskQueue = []; // 清空抄写队列
-        currentTasks.forEach((t, i) => {
-            const correct = correctLines[i].match(/\[(.*?)\]/)[1];
-            t.correctEn = correct;
-            copyTaskQueue.push(correct); // 加入抄写任务
+        let html = '<h3 style="margin-top:0; color:#e67e22;">📋 对照批改结果：</h3>';
+        copySentenceQueue = []; // 清空之前的队列
+
+        translationTasks.forEach((t, i) => {
+            // 精准提取 AI 给出的每一句答案
+            let correctText = extractTag(`s${i+1}`);
+            
+            // 如果 AI 还是没给（极低概率），则尝试降级抓取第一行
+            if (!correctText) {
+                correctText = aiRes.split('\n').filter(l => l.trim())[i] || "AI error: No sentence provided";
+                // 去掉可能的序号 1. 2. 
+                correctText = correctText.replace(/^\d+\.\s*/, '').replace(/[<>]/g, '');
+            }
+
+            t.correctEn = correctText;
+            copySentenceQueue.push(correctText); // 加入抄写队列
 
             html += `
-                <div style="display:flex; gap:10px; margin-bottom:15px; border:1px solid #eee; padding:10px; border-radius:8px;">
-                    <div style="flex:1; color:#e74c3c;"><small>你的答案：</small><br>${t.userEn || "(空)"}</div>
-                    <div style="flex:1; color:#27ae60;"><small>地道答案：</small><br><b>${correct}</b></div>
+                <div style="display:flex; gap:10px; margin-bottom:12px; border:1px solid #eee; padding:12px; border-radius:12px; background:white; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="flex:1; color:#e74c3c; border-right:1px solid #f0f0f0; padding-right:8px;">
+                        <small style="color:#999; font-weight:bold;">你的回答</small><br>
+                        <span style="font-size:15px;">${t.userEn || "(未填写)"}</span>
+                    </div>
+                    <div style="flex:1; color:#27ae60; padding-left:5px;">
+                        <small style="color:#999; font-weight:bold;">地道参考</small><br>
+                        <b style="font-size:16px;">${correctText}</b>
+                    </div>
                 </div>
             `;
         });
 
-        document.getElementById('transResult').style.display = 'block';
-        comparisonBox.innerHTML = html;
+        compareArea.innerHTML = html;
         document.getElementById('transWorking').style.display = 'none';
+        btn.disabled = false;
+        btn.innerText = "✅ 提交 AI 批改";
 
-        // 启动抄写练习
+        // 启动抄写
         startCopyExercise();
 
-    } catch (e) { alert("批改失败"); }
+    } catch (e) {
+        console.error(e);
+        alert("批改失败，可能是网络问题。");
+        btn.disabled = false;
+    }
 }
 
 // 4. 抄写练习逻辑
 function startCopyExercise() {
-    if (copyTaskQueue.length === 0) {
-        alert("🎉 今日翻译挑战全部完成！");
-        location.reload(); // 或者重置状态
-        return;
-    }
-    copyCounter = 0;
+    if (copySentenceQueue.length === 0) return;
+    
+    currentCopyCount = 0;
     document.getElementById('copyExerciseArea').style.display = 'block';
     updateCopyDisplay();
+    
+    // 自动滚动到抄写区
+    document.getElementById('copyExerciseArea').scrollIntoView({ behavior: 'smooth' });
 }
 
 function updateCopyDisplay() {
-    document.getElementById('copyTargetSentence').innerText = copyTaskQueue[0];
-    document.getElementById('copyProgress').innerText = `进度：${copyCounter} / 5 (当前第 ${4-copyTaskQueue.length + 1} 句)`;
+    const target = copySentenceQueue[0];
+    const sentenceNum = 3 - copySentenceQueue.length + 1;
+    document.getElementById('copyTargetBox').innerText = target;
+    document.getElementById('copyProgressText').innerText = `第 ${sentenceNum}/3 句 | 抄写进度：${currentCopyCount} / 5`;
     document.getElementById('copyInput').value = "";
     document.getElementById('copyInput').focus();
 }
 
 function handleCopyInput() {
-    const input = document.getElementById('copyInput').value.trim();
-    const target = copyTaskQueue[0].trim();
+    const inputEl = document.getElementById('copyInput');
+    const inputVal = inputEl.value.trim();
+    const targetVal = copySentenceQueue[0].trim();
 
-    // 忽略大小写和标点符号的比对
-    const cleanInput = input.replace(/[.,!?'"]/g, '').toLowerCase();
-    const cleanTarget = target.replace(/[.,!?'"]/g, '').toLowerCase();
+    // 科学校验：忽略最后的标点符号和大小写
+    const cleanInput = inputVal.replace(/[.,!?'"]/g, '').toLowerCase();
+    const cleanTarget = targetVal.replace(/[.,!?'"]/g, '').toLowerCase();
 
     if (cleanInput === cleanTarget) {
-        copyCounter++;
-        if (copyCounter >= 5) {
-            copyTaskQueue.shift(); // 移除已完成的句子
-            if (copyTaskQueue.length > 0) {
-                copyCounter = 0;
-                alert("很好！下一句。");
+        currentCopyCount++;
+        if (currentCopyCount >= 5) {
+            // 当前句子完成
+            copySentenceQueue.shift();
+            if (copySentenceQueue.length > 0) {
+                alert("非常好！下一句。");
+                currentCopyCount = 0;
                 updateCopyDisplay();
             } else {
-                alert("🎉 太棒了！3 句地道表达已深度刻入脑海！");
-                document.getElementById('copyExerciseArea').style.display = 'none';
-                document.getElementById('transSetup').style.display = 'block';
-                document.getElementById('transResult').style.display = 'none';
+                // 全部 3 句完成
+                alert("🎉 太棒了！今日 3 句地道表达已深度肌肉记忆！");
+                resetTranslationSection();
             }
         } else {
             updateCopyDisplay();
         }
     } else {
-        alert("拼写有误，请准确抄写哦！");
+        alert("拼写有误，请仔细对照上方绿色文字抄写哦！");
+        inputEl.select(); // 选中错误的文字方便修改
     }
+}
+
+function resetTranslationSection() {
+    document.getElementById('copyExerciseArea').style.display = 'none';
+    document.getElementById('transResult').style.display = 'none';
+    document.getElementById('transSetup').style.display = 'block';
+}
+
+// ================= 文章回译挑战逻辑 =================
+let artChallengeData = []; // 存储抽取的题目
+
+async function startArticleChallenge() {
+    if (articleList.length === 0) return alert("文章尚未加载");
+
+    // 1. 确定抽取范围：从第 0 段到当前结束下拉框选中的段落
+    const endIdx = parseInt(document.getElementById('articleEndSelect').value);
+    const pool = articleList.slice(0, endIdx + 1);
+
+    if (pool.length < 3) {
+        alert("已学段落不足 3 段，请先多学几段再来挑战！");
+        return;
+    }
+
+    // 2. 随机抽取 3 个不连续的索引
+    let selectedIndices = [];
+    while (selectedIndices.length < 3) {
+        let r = Math.floor(Math.random() * pool.length);
+        // 确保不重复且不连续（索引差大于1）
+        let isConsecutive = selectedIndices.some(idx => Math.abs(idx - r) <= 1);
+        if (!selectedIndices.includes(r) && !isConsecutive) {
+            selectedIndices.push(r);
+        }
+        // 如果池子太小无法满足“不连续”，则只保证不重复
+        if (pool.length <= 5 && !selectedIndices.includes(r)) {
+            selectedIndices.push(r);
+        }
+    }
+
+    artChallengeData = selectedIndices.map(i => pool[i]);
+
+    // 3. UI 切换
+    document.getElementById('artChallengeSetup').style.display = 'none';
+    document.getElementById('artChallengeWorking').style.display = 'block';
+    document.getElementById('artChallengeResult').style.display = 'none';
+
+    const qBox = document.getElementById('artChallengeQuestions');
+    qBox.innerHTML = artChallengeData.map((item, i) => `
+        <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
+            <p style="font-weight:bold; color:#2c3e50;">句 ${i+1} (来自原课文):</p>
+            <p style="background:#fffbe6; padding:10px; border-radius:8px;">${item.zh}</p>
+            <textarea class="art-user-input" data-idx="${i}" placeholder="尝试默写出对应的原英文句子..." rows="2" style="margin-top:10px;"></textarea>
+        </div>
+    `).join('');
+}
+
+async function gradeArticleChallenge() {
+    const apiKey = localStorage.getItem('silicon_api_key');
+    if (!apiKey) return alert("请在‘互动聊天’版块设置 API Key");
+
+    const inputs = document.querySelectorAll('.art-user-input');
+    const feedbackBox = document.getElementById('artChallengeComparison');
+    
+    document.getElementById('artChallengeWorking').style.display = 'none';
+    document.getElementById('artChallengeResult').style.display = 'block';
+    feedbackBox.innerHTML = "<p style='text-align:center;'>⏳ AI 老师正在逐字逐句批改中...</p>";
+
+    // 构建非常详细的对照数据
+    let checkContent = artChallengeData.map((item, i) => {
+        return `
+第${i+1}题：
+【中文原意】：${item.zh}
+【课文原句】：${item.en}
+【用户翻译】：${inputs[i].value.trim() || "（未填写）"}
+-----------------------------------`;
+    }).join('\n');
+
+    // 强化 Prompt：要求 AI 必须针对每一句的差异进行分析
+    const prompt = `你是一位极度细心的英语私教。请对比用户的“回译”和“课文原句”。
+要求：
+1. 必须【逐题】分析。
+2. 即使意思对，也要指出用户用词与原句（地道表达）的细微差别（比如连读习惯、介词使用、语气强弱）。
+3. 如果有语法错误，请明确指出。
+4. 格式要求：为了方便程序解析，请你将每道题的点评分别放在 <p1>...</p1>, <p2>...</p2>, <p3>...</p3> 标签中。
+
+每条点评内部包含：[分数] + 具体的错误/差异分析。`;
+
+    try {
+        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'Qwen/Qwen2.5-7B-Instruct',
+                messages: [{ role: "system", content: "你是一个精准的英语翻译批改助手。" },
+                           { role: "user", content: prompt + "\n" + checkContent }],
+                temperature: 0.3 // 降低随机性，让批改更严谨
+            })
+        });
+        const data = await response.json();
+        const aiResponse = data.choices[0].message.content;
+
+        // 使用正则提取标签内容，确保批改不乱序
+        const getFeedback = (tag) => {
+            const match = aiResponse.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+            return match ? match[1].trim() : "AI 老师开小差了，未生成本句点评。";
+        };
+
+        // 渲染结果界面
+        let html = '<h3 style="color:#007AFF;">📋 AI 深度批改报告：</h3>';
+        artChallengeData.forEach((item, i) => {
+            const feedback = getFeedback(`p${i+1}`);
+            html += `
+                <div style="margin-bottom:18px; background:white; padding:15px; border-radius:15px; border:1px solid #E5E5EA; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                    <div style="font-size:12px; color:#8E8E93; margin-bottom:8px;">🎯 挑战题目 ${i+1}</div>
+                    <p style="background:#F2F2F7; padding:10px; border-radius:10px; font-size:14px; margin:0 0 10px 0;"><b>中文：</b>${item.zh}</p>
+                    
+                    <div style="display:flex; gap:12px; margin-bottom:10px;">
+                        <div style="flex:1; padding:8px; background:#FFF5F5; border-radius:8px; border-left:4px solid #FF3B30;">
+                            <small style="color:#FF3B30; font-weight:bold;">你的翻译</small><br>
+                            <span style="color:#C0392B;">${inputs[i].value.trim() || "(未填写)"}</span>
+                        </div>
+                        <div style="flex:1; padding:8px; background:#F0FFF4; border-radius:8px; border-left:4px solid #34C759;">
+                            <small style="color:#34C759; font-weight:bold;">课文原句</small><br>
+                            <span style="color:#1B5E20; font-weight:bold;">${item.en}</span>
+                        </div>
+                    </div>
+                    
+                    <div style="background:#F8F9FF; padding:12px; border-radius:10px; font-size:14px; color:#4834D4; line-height:1.6; border:1px solid #D1D8FF;">
+                        <b>💡 AI 老师点评：</b><br>${feedback.replace(/\n/g, '<br>')}
+                    </div>
+                </div>`;
+        });
+        feedbackBox.innerHTML = html;
+
+    } catch (e) {
+        console.error(e);
+        feedbackBox.innerHTML = "<p style='color:red;'>批改请求失败，请检查 API Key 或网络环境。</p>";
+    }
+}
+
+function resetArtChallenge() {
+    document.getElementById('artChallengeSetup').style.display = 'block';
+    document.getElementById('artChallengeResult').style.display = 'none';
 }

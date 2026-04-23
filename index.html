@@ -3,257 +3,403 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- PWA & iOS Native App Config -->    
+    <!-- PWA & iOS 配置 -->
     <meta name="mobile-web-app-capable" content="yes">
-    <!-- 兼容旧 iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="英语私教">
-    <!-- 关联 PWA Manifest -->
-    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-title" content="AI 英语私教">
+    <!-- 浏览器标签页图标 (Favicon) -->
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <!-- iOS 端添加到主屏幕的图标 (Apple Touch Icon) -->
     <link rel="apple-touch-icon" href="icon-192.png">
-    
+    <!-- Android / PWA 安装图标 (通过 Manifest 关联) -->
+    <link rel="manifest" href="manifest.json">
+    <!-- 让网页更像原生 App 的额外配置 -->
+    <meta name="theme-color" content="#007AFF"> <!-- 状态栏颜色 -->    
     <title>AI 英语私教</title>
-    <!-- 引入外部 CSS -->
-    <link rel="stylesheet" href="css/style.css">
+    
+    <style>
+        :root {
+            --primary: #007AFF;      /* 科技蓝 */
+            --primary-bg: #E5F1FF;
+            --success: #34C759;      /* 提示绿 */
+            --warning: #FF9500;      /* 活力橙 */
+            --danger: #FF3B30;       /* 警示红 */
+            --bg-body: #F2F2F7;      /* iOS 背景灰 */
+            --card-white: #FFFFFF;
+            --text-main: #1C1C1E;
+            --text-sub: #8E8E93;
+            --shadow-soft: 0 8px 30px rgba(0,0,0,0.05);
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            margin: 0; padding: 15px; background-color: var(--bg-body); color: var(--text-main); 
+            line-height: 1.5; -webkit-font-smoothing: antialiased;
+        }
+
+        /* 桌面端居中适配 */
+        @media (min-width: 600px) {
+            body { max-width: 480px; margin: 0 auto; border-left: 1px solid #e5e5e5; border-right: 1px solid #e5e5e5; min-height: 100vh; }
+        }
+
+        h1 { text-align: left; font-size: 26px; font-weight: 800; margin: 20px 0 10px 5px; letter-spacing: -0.5px; }
+
+        /* --- 导航栏 --- */
+        .nav-bar { 
+            display: flex; background: rgba(227, 227, 232, 0.8); backdrop-filter: blur(10px);
+            border-radius: 14px; padding: 4px; margin-bottom: 20px; 
+        }
+        .nav-btn { 
+            flex: 1; background: transparent; color: var(--text-sub); border: none; 
+            padding: 12px 0; border-radius: 11px; font-size: 14px; font-weight: 600; 
+            cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+        .nav-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+        /* --- 板块控制 --- */
+        .page-section { display: none; animation: fadeIn 0.4s ease; }
+        .page-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- 课本选择栏 --- */
+        #bookSelectorContainer { 
+            background: var(--card-white); padding: 12px 16px; border-radius: 16px; 
+            margin-bottom: 15px; display: flex; align-items: center; gap: 12px;
+            box-shadow: var(--shadow-soft);
+        }
+        #bookSelect { 
+            flex: 1; border: none; background: var(--bg-body); padding: 8px; 
+            border-radius: 8px; font-weight: 600; font-size: 14px; color: var(--primary);
+        }
+
+        /* --- 通用卡片 --- */
+        .card { 
+            background: var(--card-white); padding: 22px; border-radius: 20px; 
+            margin-bottom: 20px; box-shadow: var(--shadow-soft); border: 1px solid rgba(0,0,0,0.02);
+        }
+        h2 { font-size: 18px; margin-top: 0; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+
+        /* --- 每日看板 (Dashboard) --- */
+        .dashboard {
+            background: linear-gradient(135deg, #1C1C1E 0%, #3A3A3C 100%) !important;
+            color: white !important; border-radius: 18px !important; padding: 20px !important;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important; margin-bottom: 25px;
+        }
+        .dashboard h3 { margin: 0 0 12px 0; font-size: 15px; opacity: 0.7; font-weight: 500; }
+        #taskList { font-size: 15px; line-height: 1.8; }
+        #taskList b { color: #FFD60A; } /* 黄色强调组号 */
+        #taskList a { color: white; text-decoration: underline; margin: 0 4px; font-weight: bold; }
+
+        /* 看板内部按钮 */
+        .finish-btn { 
+            background: rgba(255,255,255,0.15) !important; border: 1px solid rgba(255,255,255,0.3) !important;
+            color: white !important; width: 100%; padding: 12px; border-radius: 12px; 
+            margin-top: 15px; font-weight: 600; cursor: pointer;
+        }
+
+        /* --- 核心按钮布局 --- */
+        .row-buttons { display: flex; gap: 12px; margin-top: 12px; }
+        .row-buttons button.action-btn { flex: 1; margin-top: 0; }
+
+        button.action-btn { 
+            background-color: var(--primary); color: white; border: none; 
+            padding: 15px; border-radius: 14px; font-size: 15px; font-weight: 700; 
+            width: 100%; margin-top: 12px; cursor: pointer; transition: 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.15);
+        }
+        button.action-btn:active { transform: scale(0.96); opacity: 0.9; }
+
+        /* 不同功能的次级按钮颜色 */
+        .btn-secondary { background-color: #F2F2F7 !important; color: var(--text-main) !important; border: 1px solid #D1D1D6 !important; box-shadow: none !important; }
+        .btn-purple { background-color: #AF52DE !important; box-shadow: 0 4px 12px rgba(175, 82, 222, 0.2) !important; }
+        .btn-orange { background-color: var(--warning) !important; box-shadow: 0 4px 12px rgba(255, 149, 0, 0.2) !important; }
+        .btn-green { background-color: var(--success) !important; box-shadow: 0 4px 12px rgba(52, 199, 89, 0.2) !important; }
+
+        /* --- 单词显示 --- */
+        #targetWord { 
+            font-size: 52px; font-weight: 800; text-align: center; display: block; 
+            margin: 25px 0; letter-spacing: -1.5px;
+            background: linear-gradient(135deg, var(--primary), #5856D6);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            transition: 0.3s; cursor: pointer;
+        }
+        #chineseMeaning { text-align: center; font-size: 20px; color: #8E44AD; font-weight: 600; margin-bottom: 20px; }
+
+        /* --- 输入框与文本域 --- */
+        input[type="text"], input[type="password"], input[type="number"], textarea, select { 
+            width: 100%; padding: 14px; margin-top: 10px; border-radius: 12px; 
+            border: 1px solid #D1D1D6; box-sizing: border-box; font-size: 16px; 
+            background-color: #F9F9F9; transition: 0.2s;
+        }
+        input:focus { border-color: var(--primary); outline: none; background-color: white; }
+
+        /* --- 列表与特殊显示区 --- */
+        .example-box { background-color: #FFFBE6; border-left: 5px solid #FFD60A; padding: 15px; border-radius: 12px; margin-top: 15px; font-style: italic; }
+        .article-display { background-color: #F8F9FA; padding: 18px; border-radius: 16px; border: 1px solid #E5E5EA; line-height: 1.6; font-size: 17px; }
+        .diff-result { margin-top: 15px; padding: 15px; border-radius: 14px; border: 2px dashed var(--primary); background: white; }
+
+        /* --- 聊天窗口 --- */
+        .chat-container { height: 500px; background: #E5E5EA; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; }
+        .chat-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .chat-bubble { max-width: 85%; padding: 12px 16px; border-radius: 18px; font-size: 16px; line-height: 1.4; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .bubble-user { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 4px; }
+        .bubble-ai { align-self: flex-start; background: white; color: var(--text-main); border-bottom-left-radius: 4px; }
+        .chat-input-area { display: flex; padding: 12px; background: white; gap: 10px; align-items: center; }
+        .btn-mic { background: var(--warning); color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 20px; cursor: pointer; }
+    </style>
 </head>
 <body>
 
     <h1>🚀 AI 英语私教</h1>
 
+    <!-- 导航栏 -->
     <div class="nav-bar">
         <button id="btn-words" class="nav-btn active" onclick="switchTab('words')">单词练习</button>
         <button id="btn-articles" class="nav-btn" onclick="switchTab('articles')">文章跟读</button>
         <button id="btn-chat" class="nav-btn" onclick="switchTab('chat')">互动聊天</button>
     </div>
 
-    <!-- ================= 页面 1：单词练习 ================= -->
+    <!-- 课本选择栏 (聊天时会自动隐藏) -->
+    <div id="bookSelectorContainer">
+        <span style="font-weight: bold; font-size: 14px;">📚 课本:</span>
+        <select id="bookSelect" onchange="changeBook()">
+            <option value="default">默认词库 (根目录)</option>
+            <option value="Book1_新概念英语">新概念英语 第一册</option>
+            <option value="Book2_雅思核心词汇">雅思核心词汇</option>
+            <!-- 更多课本在此添加 -->
+        </select>
+    </div>
+
+    <!-- ================= 板块 1：单词练习 ================= -->
     <div id="page-words" class="page-section active">
-        <div class="card" style="border: 2px solid #3498db;">
-            <h2>🗣️ 单词发音与跟读 <span id="wordCounter" style="font-size: 14px; color: #8e8e93; font-weight: normal;">1/1</span></h2>
-
-            <!-- 每日科学学习看板 -->
-            <div id="dailyTaskDashboard" class="dashboard">
-                <h3 style="margin: 0 0 10px 0; font-size: 16px; display: flex; justify-content: space-between;">
-                    📅 今日学习计划 <span id="todayDate" style="font-size: 12px; opacity: 0.8;"></span>
-                </h3>
-                <div id="taskList" style="font-size: 14px; line-height: 1.8;">正在计算进度...</div>
-                <button onclick="markCurrentGroupFinished()" class="finish-btn">
-                    ✅ 标记当前组（第 <span id="currentActiveGNum">-</span> 组）为今日已完成
+        <!-- 仪表盘 -->
+        <div id="dailyTaskDashboard" class="dashboard">
+            <h3 style="display: flex; justify-content: space-between;">
+                今日学习任务 <span id="todayDate"></span>
+            </h3>
+            <div id="taskList">正在计算你的 1247 复习进度...</div>
+            
+            <!-- AI 故事生成区 -->
+            <div id="aiStoryArea" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; display:none;">
+                <button onclick="generateRevisionStory()" id="btnGenStory" style="background: rgba(255,255,255,0.2); border: 1px solid white; color: white; width: 100%; padding: 10px; border-radius: 10px; font-weight: bold; cursor: pointer;">
+                    🪄 生成今日复习词汇 AI 短文
                 </button>
+                <div id="aiStoryContent" style="display:none; background: white; color: #333; margin-top:10px; padding:12px; border-radius:10px; font-size: 14px;"></div>
+                <button id="btnShadowStory" onclick="transferStoryToArticle()" class="btn-green" style="display:none; width: 100%; margin-top:10px; color: white; border: none; padding: 10px; border-radius: 10px; cursor: pointer;">📖 同步到“文章跟读”精练</button>
             </div>
 
-            <select id="groupSelect" onchange="changeGroup()" style="font-weight: bold; color: #2980b9; border: 2px solid #3498db;"><option value="all">📚 整体练习 (加载中...)</option></select>
+            <button onclick="markCurrentGroupFinished()" class="finish-btn">
+                ✅ 标记当前组（第 <span id="currentActiveGNum">-</span> 组）为已完成
+            </button>
+        </div>
 
-            <div class="review-box">
-                <p style="margin: 0 0 8px 0; font-size: 14px; color: #2c3e50; font-weight: bold;">📅 1247 科学复习法</p>
+        <div class="card">
+            <h2>🗣️ 单词跟读 <span id="wordCounter" style="font-size: 13px; color: var(--text-sub); font-weight: normal; margin-left: auto;">1 / 10</span></h2>
+            
+            <select id="groupSelect" onchange="changeGroup()" style="font-weight: bold; color: var(--primary); margin-bottom: 10px;">
+                <option value="all">📚 载入中...</option>
+            </select>
+
+            <div style="padding: 10px 0;">
+                <strong id="targetWord" onclick="toggleBlur()">载入中...</strong>
+                <p id="chineseMeaning" style="display: none;">中文释义</p>
+            </div>
+
+            <div id="exampleSentence" class="example-box" style="display: none;"></div>
+
+            <div class="row-buttons">
+                <button class="action-btn" onclick="readTargetWord()">🔊 听读音</button>
+                <button class="action-btn btn-orange" onclick="startListeningForWord()">🎤 录音</button>
+            </div>
+            <div class="row-buttons">
+                <button class="action-btn btn-secondary" onclick="toggleMeaning()">👀 释义</button>
+                <button class="action-btn btn-secondary" onclick="showAndPlayExample()">📖 例句</button>
+            </div>
+            <p id="wordResult" style="text-align: center; font-weight: bold; min-height: 20px; margin-top: 10px;"></p>
+            <div class="row-buttons">
+                <button class="action-btn btn-secondary" onclick="restartWords()">🔄 重练</button>
+                <button class="action-btn btn-secondary" onclick="nextWord()">⏭️ 下一个</button>
+            </div>
+        </div>
+
+        <!-- AI 辅助工具区 -->
+        <div class="row-buttons">
+            <button class="action-btn btn-purple" onclick="generateGroupStory()">🪄 生成本组 10 词 AI 故事</button>
+        </div>
+        <div id="groupStoryArea" class="card" style="display: none;">
+            <h2 style="color: #AF52DE;">📖 本组情境串讲</h2>
+            <div id="groupStoryContent" class="article-display" style="background: white;"></div>
+            <button class="action-btn btn-green" onclick="transferGroupStoryToArticle()">📖 同步到“文章跟读”</button>
+        </div>
+
+        <button class="action-btn btn-orange" onclick="generateGroupMemoryPalace()">🏰 一键显示本组记忆宫殿</button>
+        <div id="memoryPalaceArea" class="card" style="display: none;">
+            <h2 style="color: var(--warning);">🏰 我家的记忆宫殿清单</h2>
+            <div id="palaceContent"></div>
+           <button class="action-btn btn-secondary" onclick="closeMemoryPalace()" style="margin-top: 15px; background: #F2F2F7 !important; border: 1px solid #D1D1D6 !important;">
+               🔙 记忆完成，返回练习
+           </button>
+        </div>
+
+        <!-- 盲听拼写区 -->
+        <div class="card">
+            <h2>✍️ 盲听拼写挑战</h2>
+            <div id="dictationSingleMode">
+                <button class="action-btn btn-secondary" onclick="startGroupTest()" style="margin-bottom: 15px; font-weight: 800;">📝 开始【本组连续测验】</button>
+                <input type="text" id="dictationInput" placeholder="听音并输入拼写..." autocomplete="off" onkeypress="if(event.key === 'Enter') checkDictation()">
+                <button class="action-btn" onclick="checkDictation()">✅ 提交检查</button>
+                <p id="dictationResult" style="text-align: center; font-weight: bold; margin-top: 10px;"></p>
+            </div>
+            <!-- 测验运行模式 -->
+            <div id="dictationGroupMode" style="display: none;">
+                <div id="groupTestProgress" style="text-align:center; margin-bottom:10px; font-weight:bold; color:var(--primary);">第 1 / 10 词</div>
+                <button class="action-btn btn-purple" onclick="playTestWord()">🔊 重听当前单词</button>
+                <input type="text" id="groupTestInput" placeholder="输入后按回车..." autocomplete="off" onkeypress="if(event.key === 'Enter') submitTestWord()">
+                <button class="action-btn btn-green" onclick="submitTestWord()">⏭️ 提交并听下一个</button>
+                <button class="action-btn btn-secondary" onclick="quitGroupTest()" style="margin-top:20px;">🚪 退出测验</button>
+            </div>
+            <!-- 测验结果模式 -->
+            <div id="dictationResultMode" style="display: none;">
+                <div id="groupTestScore" style="text-align: center; font-size: 24px; font-weight: 800; margin-bottom: 15px;"></div>
+                <ul id="groupTestResultList" style="list-style: none; padding: 0;"></ul>
+                <button class="action-btn" onclick="quitGroupTest()">🔙 返回练习</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 板块 2：文章跟读 ================= -->
+    <div id="page-articles" class="page-section">
+        <div class="card">
+            <h2>📖 智能文章影子跟读</h2>
+            <div style="background: var(--bg-body); padding: 12px; border-radius: 12px; margin-bottom: 15px;">
+                <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: bold;">📑 选段范围：</p>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    <span style="font-size: 13px;">今天学第</span>
-                    <input type="number" id="currentGroupInput" placeholder="组号" style="width: 60px; padding: 5px; margin: 0; text-align: center; border: 1px solid #3498db;">
-                    <span style="font-size: 13px;">组</span>
-                    <button onclick="calculateReviewGroups()" class="generate-btn">生成复习计划</button>
-                </div>
-                <div id="reviewResultArea" style="margin-top: 10px; font-size: 13px; color: #7f8c8d; display: none;">
-                    <div id="aiStoryArea" style="margin-top: 15px; display: none; border-top: 1px solid #eee; padding-top: 10px;">
-                        <button onclick="generateRevisionStory()" id="btnGenStory" class="story-btn">
-                            🪄 用复习词汇生成 AI 励志短文
-                        </button>
-                        <div id="aiStoryContent" class="story-content"></div>
-                        <button id="btnShadowStory" onclick="transferStoryToArticle()" class="sync-btn">📖 同步到“文章跟读”精练</button>
-                    </div>
-                    需复习：<span id="reviewLinks"></span>
+                    <select id="articleStartSelect" onchange="changeArticleRange()" style="margin:0;"></select>
+                    <span>至</span>
+                    <select id="articleEndSelect" onchange="changeArticleRange()" style="margin:0;"></select>
                 </div>
             </div>
-
-            <!-- 单词主体 -->
-            <div style="text-align: center; width: 100%; margin-top: 20px;">
-                <strong style="font-size: 42px; color: #27ae60; display: block; margin-bottom: 5px;" id="targetWord" onclick="toggleBlur()">加载中...</strong>
-                <p id="chineseMeaning" style="text-align: center; font-size: 20px; color: #8e44ad; font-weight: bold; display: none; margin: 10px 0;">中文释义</p>
-            </div>
-            <div id="exampleSentence" class="example-box"></div>
             
             <div class="row-buttons">
-                <button class="action-btn" onclick="readTargetWord()" style="background-color: #27ae60;">🔊 听标准音</button>
-                <button class="action-btn" onclick="startListeningForWord()" style="background-color: #e67e22;">🎤 按住跟读</button>
+                <select id="speedSelect" style="margin:0; flex:1; font-weight: bold;">
+                    <option value="0.5">🐢 0.5x 慢速</option>
+                    <option value="0.8">🚶 0.8x 适中</option>
+                    <option value="1" selected>🏃 1.0x 正常</option>
+                </select>
+                <button class="action-btn btn-purple" onclick="speakArticle()" style="flex:1; margin:0;">🔊 老师范读</button>
             </div>
+
+            <div id="articleDisplay" class="article-display" style="margin-top:15px;">文章内容载入中...</div>
+            
+            <button class="action-btn btn-orange" onclick="startListeningForArticle()">🎤 开始影子跟读（AI 批改）</button>
+            
+            <div id="diffResult" class="diff-result" style="display: none;">
+                <div id="diffContent"></div>
+            </div>
+
             <div class="row-buttons">
-                <button class="action-btn" onclick="toggleMeaning()" style="background-color: #9b59b6;">👀 看中文</button>
-                <button class="action-btn" onclick="showAndPlayExample()" style="background-color: #f39c12;">📖 看/读例句</button>
-            </div>
-            <p id="wordResult" class="result-text"></p>
-            <div class="row-buttons">
-                <button class="action-btn" onclick="restartWords()" style="background-color: #7f8c8d;">🔄 从头开始</button>
-                <button class="action-btn" onclick="nextWord()" style="background-color: #34495e;">⏭️ 下一个单词</button>
+                <button class="action-btn btn-secondary" onclick="nextArticleRange()">⏭️ 下一部分</button>
             </div>
         </div>
 
-<!-- 在 page-words 的单词卡片内增加 -->
-<div class="row-buttons">
-    <button class="action-btn" onclick="generateGroupStory()" style="background-color: #8e44ad; width: 100%; margin-top: 20px;">
-        🪄 用本组 10 词生成 AI 故事
-    </button>
-</div>
-
-<!-- 用于显示生成的 AI 故事 -->
-<div id="groupStoryArea" class="card" style="display: none; margin-top: 20px; border: 1px solid #8e44ad; background-color: #fdf6ff;">
-    <h2 style="color: #8e44ad;">📖 本组情境串讲</h2>
-    <div id="groupStoryContent" class="article-display" style="background: white; font-size: 16px;">
-        正在构思故事...
-    </div>
-    <button class="action-btn" onclick="transferGroupStoryToArticle()" style="background-color: #27ae60;">
-        📖 同步到“文章跟读”练习
-    </button>
-</div>
-
-<button class="action-btn" onclick="generateGroupMemoryPalace()" style="background-color: #f39c12; width: 100%; margin-top: 10px;">
-    🏰 一键生成本组记忆宫殿
-</button>
-
-
-<!-- 宫殿内容展示区 -->
-<div id="memoryPalaceArea" class="card" style="display: none; margin-top: 20px; border: 2px solid #e67e22; background-color: #fffaf0;">
-    <h2 style="color: #d35400;">🏰 我家的记忆宫殿清单</h2>
-    <div id="palaceContent" style="font-size: 15px; line-height: 1.8; text-align: left; color: #333;">
-        正在根据您的家居布局构建动态画面...
-    </div>
-</div>
-
-<!-- 记忆宫殿展示区 -->
-<div id="memoryPalaceArea" class="card" style="display: none; margin-top: 20px; border: 1px solid #f39c12; background-color: #fffaf0;">
-    <h2 style="color: #e67e22;">🏰 本组记忆宫殿清单</h2>
-    <div id="palaceContent" style="font-size: 15px; line-height: 1.8; text-align: left;">
-        正在构建记忆宫殿...
-    </div>
-</div>
-
-        <div class="card">
-            <h2>✍️ 盲听拼写</h2>
-            <div id="dictationSingleMode">
-                <button class="action-btn" onclick="startGroupTest()" style="background-color: #34495e; margin-top: 0; margin-bottom: 20px; font-size: 18px;">📝 开始【本组连续测验】</button>
-                <button class="action-btn" onclick="readTargetWord()" style="background-color: #8e44ad; margin-top: 0;">🔊 播放当前单词</button>
-                <input type="text" id="dictationInput" placeholder="输入拼写 (按回车提交检查)..." autocomplete="off" autocorrect="off" autocapitalize="none" onkeypress="if(event.key === 'Enter') checkDictation()">
-                <button class="action-btn" onclick="checkDictation()" style="background-color: #2980b9;">✅ 提交检查</button>
-                <p id="dictationResult" class="result-text"></p>
-            </div>
-            <div id="dictationGroupMode" style="display: none;">
-                <div class="test-progress" id="groupTestProgress">正在测验: 1 / 10</div>
-                <button class="action-btn" onclick="playTestWord()" style="background-color: #8e44ad; margin-top: 0;">🔊 重听当前单词</button>
-                <input type="text" id="groupTestInput" placeholder="输入拼写按【回车】下一个..." autocomplete="off" autocorrect="off" autocapitalize="none" onkeypress="if(event.key === 'Enter') submitTestWord()" style="border: 2px solid #3498db; font-size: 18px;">
-                <button class="action-btn" onclick="submitTestWord()" style="background-color: #27ae60;">⏭️ 提交并听下一个</button>
-                <button class="action-btn" onclick="quitGroupTest()" style="background-color: #e74c3c; margin-top: 20px;">🚪 提前结束测验</button>
-            </div>
-            <div id="dictationResultMode" style="display: none;">
-                <div class="score-display" id="groupTestScore">正确率: 80%</div>
-                <ul class="result-list" id="groupTestResultList"></ul>
-                <button class="action-btn" onclick="quitGroupTest()" style="background-color: #3498db; margin-top: 20px;">🔙 返回自由练习</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ================= 页面 2：文章跟读 ================= -->
-    <div id="page-articles" class="page-section">
-        <!-- 此处 HTML 结构不变，与原代码完全一致，略省部分重复以聚焦 -->
-        <div class="card">
-            <h2>📖 智能文章跟读</h2>
-            <div style="background: #eaf2f8; padding: 10px; border-radius: 8px; margin-bottom: 10px;">
-                <p style="margin: 0 0 5px 0; font-size: 14px; color: #2980b9; font-weight: bold;">📑 提取学习段落：</p>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <select id="articleStartSelect" onchange="changeArticleRange()" style="margin: 0; padding: 8px; flex: 1;"></select> 
-                    <span style="color: #34495e; font-weight: bold;">至</span>
-                    <select id="articleEndSelect" onchange="changeArticleRange()" style="margin: 0; padding: 8px; flex: 1;"></select>
-                </div>
-            </div>
-            <div class="row-buttons"><select id="speedSelect" style="width: 100%; padding: 12px; margin-top: 10px; border-radius: 12px; font-size: 15px; font-weight: bold; color: #2c3e50; border: 2px solid #8e44ad;"><option value="0.5">🐢 0.5x</option><option value="1" selected>🏃 1.0x 正常</option><option value="1.5">🚀 1.5x</option></select></div>
-            <div id="articleDisplay" class="article-display">文章加载中...</div>
-            <div class="row-buttons"><button class="action-btn" onclick="speakArticle()" style="background-color: #8e44ad;">🔊 老师范读</button><button class="action-btn" onclick="startListeningForArticle()" style="background-color: #e67e22;">🎤 开始跟读</button></div>
-            <div id="diffResult" class="diff-result"><span id="diffContent"></span></div>
-            <div class="row-buttons"><button class="action-btn" onclick="startListeningForArticle()" style="background-color: #3498db;">🔄 再试一次</button><button class="action-btn" onclick="nextArticleRange()" style="background-color: #2c3e50;">⏭️ 下一部分</button></div>
-        </div>
-
-        <div class="card" style="border: 2px solid #8e44ad;">
+        <!-- 听写区 -->
+        <div class="card" style="border: 2px solid var(--primary);">
             <h2>✍️ 黄金十秒·逐句听写</h2>
-            <div id="articleDictationSetup"><button class="action-btn" onclick="startArticleDictation()" style="background-color: #8e44ad; font-size: 18px;">📝 开始精听上方选段</button></div>
+            <div id="articleDictationSetup">
+                <button class="action-btn" onclick="startArticleDictation()">📝 开始听写上方选段</button>
+            </div>
             <div id="articleDictationRunning" style="display: none;">
-                <div class="test-progress" id="articleDictProgress">正在听写: 1 / 5 句</div>
-                <p style="font-size: 13px; color: #e67e22; text-align: center; font-weight: bold;" id="timerHint">🔊 第一遍播放中...</p>
-                <button class="action-btn" onclick="playCurrentSentence()" style="background-color: #f39c12;">🔊 立即重听本句</button>
-                <textarea id="articleDictInput" rows="3" style="border: 2px solid #8e44ad; font-size: 18px;" onkeypress="if(event.key === 'Enter') { event.preventDefault(); checkArticleDictation(); }"></textarea>
-                <button class="action-btn" onclick="checkArticleDictation()" style="background-color: #27ae60;">✅ 提交并对答案</button>
-                <div id="articleDictResult" class="diff-result" style="margin-top: 15px;"></div>
-                <button id="btnNextSentence" class="action-btn" onclick="nextDictationSentence()" style="background-color: #34495e; display: none;">⏭️ 进行下一句</button>
-                <button class="action-btn" onclick="quitArticleDictation()" style="background-color: #e74c3c; margin-top: 15px;">🚪 结束精听</button>
+                <div id="articleDictProgress" style="text-align:center; font-weight:bold; color:var(--primary);">正在听写: 1 / 5</div>
+                <p id="timerHint" style="text-align: center; color: var(--warning); font-size: 14px;"></p>
+                <button class="action-btn btn-orange" onclick="playCurrentSentence()">🔊 立即重听</button>
+                <textarea id="articleDictInput" rows="3" placeholder="听音并写下句子..."></textarea>
+                <button class="action-btn btn-green" onclick="checkArticleDictation()">✅ 提交对比答案</button>
+                <div id="articleDictResult" class="diff-result" style="display:none;"></div>
+                <button id="btnNextSentence" class="action-btn" onclick="nextDictationSentence()" style="display:none;">⏭️ 进行下一句</button>
+                <button class="action-btn btn-secondary" onclick="quitArticleDictation()" style="margin-top:15px;">🚪 结束精听</button>
             </div>
         </div>
 
-<!-- ================= 翻译挑战卡片 ================= -->
-<div class="card" style="border: 2px solid #27ae60;">
-    <h2>🏆 每日翻译挑战 (中译英)</h2>
-    <div id="transSetup">
-        <button class="action-btn" onclick="startTranslationChallenge()" style="background-color: #27ae60;">🚀 开始今日 3 句挑战</button>
-        <p style="font-size: 12px; color: #7f8c8d; text-align: center; margin-top: 5px;">AI 会根据你当前的单词进度为你出题</p>
+<!-- ================= 文章精通挑战 (新增) ================= -->
+<div class="card" style="border: 2px solid #007AFF;">
+    <h2>🎯 文章精通挑战 (课文回译)</h2>
+    <div id="artChallengeSetup">
+        <button class="action-btn" onclick="startArticleChallenge()" style="background-color: #007AFF;">🔥 抽取已学课文挑战</button>
+        <p style="font-size: 12px; color: #7f8c8d; text-align: center; margin-top: 5px;">范围：第 1 段至当前选段</p>
     </div>
 
-    <!-- 输入区域 -->
-    <div id="transWorking" style="display: none;">
-        <div id="transQuestions"></div>
-        <button class="action-btn" id="btnSubmitTrans" onclick="gradeTranslations()" style="background-color: #2980b9; margin-top: 15px;">✅ 提交 AI 批改</button>
+    <div id="artChallengeWorking" style="display: none;">
+        <div id="artChallengeQuestions"></div>
+        <button class="action-btn" id="btnSubmitArtChallenge" onclick="gradeArticleChallenge()" style="background-color: #27ae60; margin-top: 15px;">✅ 提交 AI 批改</button>
     </div>
 
-    <!-- 结果与并排对比 -->
-    <div id="transResult" style="display: none; margin-top: 15px;">
-        <div id="transComparisonArea"></div>
-    </div>
-
-    <!-- 5次抄写强化区 -->
-    <div id="copyExerciseArea" style="display: none; margin-top: 20px; padding-top: 15px; border-top: 2px dashed #27ae60;">
-        <h3 style="color: #27ae60;">✍️ 刻意练习：正确版本抄写 5 遍</h3>
-        <p id="copyTargetSentence" style="font-weight: bold; background: #f0fff4; padding: 10px; border-radius: 8px;"></p>
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <input type="text" id="copyInput" placeholder="在此输入正确答案..." autocomplete="off" onkeypress="if(event.key === 'Enter') handleCopyInput()">
-            <button onclick="handleCopyInput()" style="width: 80px; background: #27ae60; color:white; border:none; border-radius:10px;">发送</button>
-        </div>
-        <div id="copyProgress" style="margin-top: 10px; font-weight: bold; color: #27ae60;">进度：0 / 5</div>
+    <div id="artChallengeResult" style="display: none; margin-top: 15px;">
+        <div id="artChallengeComparison" style="background: #f0f7ff; padding: 15px; border-radius: 12px;"></div>
+        <button class="action-btn btn-secondary" onclick="resetArtChallenge()" style="margin-top:10px;">🔙 返回</button>
     </div>
 </div>
 
+        <!-- 翻译挑战区 -->
+        <div class="card" style="border: 2px solid var(--success);">
+            <h2>🏆 每日 3 句翻译挑战</h2>
+            <div id="transSetup">
+                <button class="action-btn btn-green" onclick="startTranslationChallenge()">🚀 开始中译英挑战</button>
+            </div>
+            <div id="transWorking" style="display: none;">
+                <div id="transQuestions"></div>
+                <button class="action-btn" id="btnSubmitTrans" onclick="gradeTranslations()">✅ 提交 AI 批改</button>
+            </div>
+            <div id="transResult" style="display: none;">
+                <div id="transComparisonArea"></div>
+            </div>
+            <!-- 抄写练习 -->
+            <div id="copyExerciseArea" style="display: none; margin-top: 15px; background: #F0FFF4; padding: 15px; border-radius: 14px; border: 1px solid var(--success);">
+                <h3 style="color: var(--success); margin:0 0 10px 0;">✍️ 刻意练习：抄写 5 遍</h3>
+                <div id="copyTargetBox" style="font-weight: 700; margin-bottom: 12px; background: white; padding: 10px; border-radius: 8px;"></div>
+                <input type="text" id="copyInput" placeholder="在此输入..." onkeypress="if(event.key === 'Enter') handleCopyInput()">
+                <div id="copyProgressText" style="text-align: center; font-weight: bold; margin-top: 10px; color: var(--success);">进度: 0 / 5</div>
+            </div>
+        </div>
     </div>
 
-    <!-- ================= 页面 3：互动聊天 ================= -->
+    <!-- ================= 板块 3：互动聊天 ================= -->
     <div id="page-chat" class="page-section">
-        <div style="text-align: right; margin-bottom: -10px; padding-right: 5px;">
-            <button onclick="toggleSettings()" style="background: transparent; border: none; font-size: 16px; color: #3498db; cursor: pointer; font-weight: bold;">⚙️ 展开/收起设置</button>
-        </div>
-        
-        <div class="card" id="settingsCard" style="padding-bottom: 10px; border: 2px dashed #bdc3c7; margin-top: 15px;">
-            <h2>🤖 AI 接口设置</h2>
-            <input type="password" id="siliconApiKey" placeholder="在此输入 API Key (sk-...)" value="">
-            <button class="action-btn" onclick="saveApiKey()" style="background-color: #2c3e50; margin-top: 10px;">💾 保存 Key</button>
-            <p id="apiKeyStatus" style="font-size: 12px; color: #7f8c8d; text-align: center; margin-top: 10px;">API Key 仅保存在你的手机本地，非常安全。</p>
+        <div style="text-align: right; margin-bottom: 10px;">
+            <button onclick="toggleSettings()" style="background:transparent; border:none; color:var(--primary); font-weight:bold; cursor:pointer;">⚙️ AI 设置</button>
         </div>
 
-        <div class="mode-switch">
-            <button id="modeBtnEng" class="mode-btn active" onclick="switchChatMode('eng')">🇬🇧 英语私教模式</button>
-            <button id="modeBtnChn" class="mode-btn" onclick="switchChatMode('chn')">🇨🇳 中文助手模式</button>
+        <div class="card" id="settingsCard" style="display: block; border: 2px dashed var(--text-sub);">
+            <h2>🤖 API 配置</h2>
+            <input type="password" id="siliconApiKey" placeholder="在此输入 API Key (sk-...)">
+            <button class="action-btn" onclick="saveApiKey()">💾 保存并隐藏</button>
+            <p id="apiKeyStatus" style="font-size: 12px; color: var(--text-sub); text-align: center; margin-top: 8px;">Key 仅保存在本地，非常安全</p>
+        </div>
+
+        <div class="nav-bar" style="margin-bottom: 15px;">
+            <button id="modeBtnEng" class="nav-btn active" onclick="switchChatMode('eng')">🇬🇧 英语私教</button>
+            <button id="modeBtnChn" class="nav-btn" onclick="switchChatMode('chn')">🇨🇳 中文助手</button>
         </div>
 
         <div class="chat-container">
             <div id="chatLog" class="chat-box"></div>
             <div class="chat-input-area">
                 <button class="btn-mic" onclick="startChatVoice()">🎤</button>
-                <input type="text" id="chatMsgInput" placeholder="输入英语与 AI 对话..." autocomplete="off" onkeypress="if(event.key === 'Enter') sendChatMessage()">
-                <button class="btn-send" onclick="sendChatMessage()">➤</button>
+                <input type="text" id="chatMsgInput" placeholder="说点什么..." autocomplete="off">
+                <button class="action-btn" onclick="sendChatMessage()" style="width: auto; margin: 0; padding: 10px 20px;">➤</button>
             </div>
         </div>
     </div>
 
-    <!-- 引入外部 JS，注册 Service Worker -->
+    <!-- JS 引用 -->
     <script src="js/app.js"></script>
     <script>
+        // Service Worker 注册 (用于离线 PWA 功能)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(registration => console.log('SW 注册成功: ', registration.scope))
-                    .catch(err => console.log('SW 注册失败: ', err));
+                    .then(reg => console.log('✅ SW 注册成功'))
+                    .catch(err => console.log('❌ SW 注册失败'));
             });
         }
     </script>
