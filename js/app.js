@@ -998,6 +998,7 @@ let currentCopyCount = 0;  // 当前句子的抄写次数进度
 
 // 1. 开始挑战：AI 出题
 // 1. 开始挑战：AI 出题 (优化版 Prompt)
+// 1. 开始挑战：AI 出题 (修复中括号显示问题)
 async function startTranslationChallenge() {
     const apiKey = localStorage.getItem('silicon_api_key');
     if (!apiKey) return alert("请先在设置中保存 API Key");
@@ -1011,22 +1012,15 @@ async function startTranslationChallenge() {
     document.getElementById('transSetup').style.display = 'none';
     document.getElementById('transWorking').style.display = 'block';
     const qBox = document.getElementById('transQuestions');
-    qBox.innerHTML = "<p style='text-align:center; color:#8e44ad;'>⏳ AI 老师正在为你构思纯中文题目...</p>";
+    qBox.innerHTML = "<p style='text-align:center; color:#8e44ad;'>⏳ AI 老师正在为你构思纯净题目...</p>";
 
-    // 【核心改进】：增加“纯中文”和“禁止出现英文”的强力约束
-    const prompt = `你是一位专业的英语老师。
-    请根据这些英语单词：[${words.join(", ")}]，编写 3 个简单的日常中文句子。
-    
-    【关键要求】：
-    1. 所有的题目必须是【纯中文】，绝对禁止出现任何英文单词、拼音或中英混杂。
-    2. 每个中文句子的意境要能够引导用户翻译出上述单词中的 1-2 个。
-    3. 句子要通顺、自然，像真正的课后练习题。
-    
-    【输出格式】：
-    严格按以下格式输出（不要有任何开头和结尾）：
-    1. [第一个中文句子]
-    2. [第二个中文句子]
-    3. [第三个中文句子]`;
+    const prompt = `你是一位专业的英语老师。请根据以下单词：[${words.join(", ")}]，编写 3 个简单的日常中文句子。
+    要求：
+    1. 纯中文，严禁出现英文。
+    2. 严格按以下格式输出（不要带括号，不要前言）：
+    1. 第一句中文
+    2. 第二句中文
+    3. 第三句中文`;
 
     try {
         const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
@@ -1035,7 +1029,7 @@ async function startTranslationChallenge() {
             body: JSON.stringify({
                 model: 'Qwen/Qwen2.5-7B-Instruct',
                 messages: [
-                    { role: "system", content: "你是一个只输出纯中文翻译题目的助教，严禁在题目中写英文。" },
+                    { role: "system", content: "你是一个翻译题目生成器，只输出中文题目内容，严禁带中括号[]或英文。" },
                     { role: "user", content: prompt }
                 ],
                 temperature: 0.7
@@ -1044,28 +1038,22 @@ async function startTranslationChallenge() {
         const data = await response.json();
         const content = data.choices[0].message.content;
         
-        // 解析题目
-        const lines = content.match(/\[(.*?)\]/g) || [];
-        if (lines.length < 3) {
-            // 兜底方案：如果没匹配到中括号，按行切分
-            const fallbackLines = content.split('\n').filter(l => l.trim().length > 5).slice(0,3);
-            translationTasks = fallbackLines.map(l => ({
-                cn: l.replace(/^\d+\.\s*/, '').trim(),
-                userEn: '',
-                correctEn: ''
-            }));
-        } else {
-            translationTasks = lines.map(l => ({ 
-                cn: l.replace(/[\[\]]/g, ''), 
-                userEn: '', 
-                correctEn: '' 
-            }));
-        }
+        // 【关键修复：解析逻辑】
+        // 1. 先按行切分
+        // 2. 用 replace(/[\[\]]/g, '') 强制删掉内容中所有的 [ 和 ]
+        // 3. 用 replace(/^\d+\.\s*/, '') 删掉开头的 1. 2. 序号
+        const rawLines = content.split('\n').filter(l => l.trim().length > 2);
+        
+        translationTasks = rawLines.slice(0, 3).map(l => ({ 
+            cn: l.replace(/[\[\]]/g, '').replace(/^\d+[\.、\s]+/, '').trim(), 
+            userEn: '', 
+            correctEn: '' 
+        }));
 
         qBox.innerHTML = translationTasks.map((t, i) => `
             <div style="margin-bottom:15px; border-bottom:1px solid #f0f0f0; padding-bottom:10px;">
                 <p style="font-size:16px; color:#333;"><b>Q${i+1}:</b> ${t.cn}</p>
-                <input type="text" class="trans-user-input" data-idx="${i}" placeholder="尝试用你学过的单词翻译..." style="border: 1px solid #007AFF;">
+                <input type="text" class="trans-user-input" data-idx="${i}" placeholder="尝试用学过的单词翻译..." style="border: 1px solid #007AFF;">
             </div>
         `).join('');
 
@@ -1087,21 +1075,19 @@ async function gradeTranslations() {
     });
 
     const btn = document.getElementById('btnSubmitTrans');
-    btn.innerText = "⏳ AI 正在深度阅卷中...";
+    btn.innerText = "⏳ 正在阅卷（防乱码模式）...";
     btn.disabled = true;
 
-    // --- 核心改进：改用 JSON 格式指令，强制禁止中文 ---
-    const prompt = `Task: Translate 3 sentences into natural English.
-    Input:
-    1. ${translationTasks[0].cn}
-    2. ${translationTasks[1].cn}
-    3. ${translationTasks[2].cn}
+    // --- 策略 1：极简指令，完全抛弃 JSON，防止模型大脑过载 ---
+    const prompt = `Task: Translate these 3 sentences into simple English.
+1. ${translationTasks[0].cn}
+2. ${translationTasks[1].cn}
+3. ${translationTasks[2].cn}
 
-    Rules:
-    - ONLY output a JSON array of strings.
-    - NO Chinese characters in the translation.
-    - NO repeated words.
-    - Example format: ["English 1", "English 2", "English 3"]`;
+Instructions:
+- Output ONLY 3 lines.
+- One English sentence per line.
+- NO Chinese, NO symbols, NO repeated words.`;
 
     try {
         const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
@@ -1110,28 +1096,21 @@ async function gradeTranslations() {
             body: JSON.stringify({
                 model: 'Qwen/Qwen2.5-7B-Instruct',
                 messages: [
-                    { role: "system", content: "You are a professional translator that only outputs valid JSON arrays. Never repeat words." },
+                    { role: "system", content: "You are a translation machine. You only output 3 lines of plain English text. No repetition. No chatter." },
                     { role: "user", content: prompt }
                 ],
-                temperature: 0.1,      // 极低随机性
-                top_p: 0.1,            // 极低采样
-                frequency_penalty: 0.8 // 【关键】强力惩罚重复单词
+                temperature: 0.1,
+                top_p: 0.1,
+                frequency_penalty: 1.5, // 极高惩罚，彻底消灭重复单词
+                max_tokens: 300         // 限制长度，防止 AI 没完没了地写
             })
         });
         
         const data = await response.json();
         let aiRaw = data.choices[0].message.content.trim();
         
-        // --- 逻辑：解析 JSON ---
-        let correctSentences = [];
-        try {
-            // 提取字符串中的 JSON 部分（防止 AI 说废话）
-            const jsonMatch = aiRaw.match(/\[.*\]/s);
-            correctSentences = JSON.parse(jsonMatch ? jsonMatch[0] : aiRaw);
-        } catch (e) {
-            // 兜底方案：如果 JSON 解析失败，按行切分并清洗
-            correctSentences = aiRaw.replace(/[\[\]"]/g, '').split('\n').filter(s => s.trim());
-        }
+        // --- 策略 2：物理清洗，无论 AI 怎么乱写，我们只要前三行有用的 ---
+        let lines = aiRaw.split('\n').filter(l => l.trim().length > 5);
 
         const resBox = document.getElementById('transResult');
         const compareArea = document.getElementById('transComparisonArea');
@@ -1141,18 +1120,30 @@ async function gradeTranslations() {
         copySentenceQueue = [];
 
         translationTasks.forEach((t, i) => {
-            let correctText = correctSentences[i] || "Wait, AI is confused. Please try again.";
+            let rawText = lines[i] || "AI is busy, please submit again.";
             
-            // --- 过滤器：去除单词重复和中文字符（双保险） ---
-            correctText = correctText.replace(/[\u4e00-\u9fa5]/g, ''); // 删掉所有中文
-            // 简单的去重逻辑：如果一个词连续出现超过2次，只保留一次
-            correctText = correctText.replace(/\b(\w+)(\s+\1){2,}\b/gi, '$1');
+            // --- 策略 3：单词洗涤器 (Deduplicator) ---
+            // 自动把 "maintains maintains" 变成 "maintains"
+            // 自动把 "starts starts starts" 变成 "starts"
+            let words = rawText.replace(/[\[\]"]/g, '').split(/\s+/);
+            let cleanedWords = [];
+            for (let j = 0; j < words.length; j++) {
+                // 如果当前词和上一个词一样，直接跳过
+                if (j > 0 && words[j].toLowerCase() === words[j-1].toLowerCase()) continue;
+                cleanedWords.push(words[j]);
+            }
+            let correctText = cleanedWords.join(' ').replace(/[\u4e00-\u9fa5]/g, '').trim();
+
+            // 如果洗完还是太乱（比如太长），给个温馨提示
+            if (correctText.split(' ').length > 30) {
+                correctText = "The teacher is tired. Please click submit again.";
+            }
 
             t.correctEn = correctText;
             copySentenceQueue.push(correctText);
 
             html += `
-                <div style="margin-bottom:12px; border:1px solid #eee; padding:12px; border-radius:12px; background:white; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                <div style="margin-bottom:12px; border:1px solid #eee; padding:12px; border-radius:12px; background:white;">
                     <div style="font-size:13px; color:#8E8E93; margin-bottom:5px;">句 ${i+1}: ${t.cn}</div>
                     <div style="display:flex; gap:10px;">
                         <div style="flex:1; border-right:1px solid #f0f0f0; padding-right:8px;">
@@ -1177,7 +1168,7 @@ async function gradeTranslations() {
 
     } catch (e) {
         console.error(e);
-        alert("批改失败，可能是网络拥堵。请稍后重试。");
+        alert("网络繁忙，请再试一次。");
         btn.disabled = false;
     }
 }
