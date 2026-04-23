@@ -1087,20 +1087,21 @@ async function gradeTranslations() {
     });
 
     const btn = document.getElementById('btnSubmitTrans');
-    btn.innerText = "⏳ AI 老师正在阅卷...";
+    btn.innerText = "⏳ AI 正在深度阅卷中...";
     btn.disabled = true;
 
-    // 改进后的 Prompt：更简单的格式，更明确的禁止重复指令
-    const prompt = `你是一位英语审校专家。请批改以下3句翻译。
-    
-    待批改数据：
-    ${translationTasks.map((t, i) => `第${i+1}句：中文[${t.cn}]，用户回答[${t.userEn}]`).join('\n')}
-    
-    【输出规则】：
-    1. 仅输出最地道、最简洁的正确英文。
-    2. 禁止输出任何解释、标号、乱码或重复单词。
-    3. 严格按以下格式输出，三句话之间用三个井号(###)分隔：
-    正确英文1 ### 正确英文2 ### 正确英文3`;
+    // --- 核心改进：改用 JSON 格式指令，强制禁止中文 ---
+    const prompt = `Task: Translate 3 sentences into natural English.
+    Input:
+    1. ${translationTasks[0].cn}
+    2. ${translationTasks[1].cn}
+    3. ${translationTasks[2].cn}
+
+    Rules:
+    - ONLY output a JSON array of strings.
+    - NO Chinese characters in the translation.
+    - NO repeated words.
+    - Example format: ["English 1", "English 2", "English 3"]`;
 
     try {
         const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
@@ -1109,52 +1110,58 @@ async function gradeTranslations() {
             body: JSON.stringify({
                 model: 'Qwen/Qwen2.5-7B-Instruct',
                 messages: [
-                    { role: "system", content: "你是一个精准的翻译官，只输出英文结果，严禁重复单词。" },
+                    { role: "system", content: "You are a professional translator that only outputs valid JSON arrays. Never repeat words." },
                     { role: "user", content: prompt }
                 ],
-                temperature: 0.1 // 极低温度，追求极致稳定
+                temperature: 0.1,      // 极低随机性
+                top_p: 0.1,            // 极低采样
+                frequency_penalty: 0.8 // 【关键】强力惩罚重复单词
             })
         });
         
         const data = await response.json();
-        let aiRes = data.choices[0].message.content.trim();
-
-        // 【数据清洗】：如果 AI 抽风带了序号或标签，强制去掉
-        const cleanSentences = aiRes.split('###').map(s => {
-            return s.trim()
-                .replace(/^[\d.、\s]+/, '') // 去掉开头的数字序号
-                .replace(/[<s><\/s>]/g, '') // 去掉可能残留的标签
-                .replace(/\s+/g, ' ');      // 将多个空格合并为一个
-        });
+        let aiRaw = data.choices[0].message.content.trim();
+        
+        // --- 逻辑：解析 JSON ---
+        let correctSentences = [];
+        try {
+            // 提取字符串中的 JSON 部分（防止 AI 说废话）
+            const jsonMatch = aiRaw.match(/\[.*\]/s);
+            correctSentences = JSON.parse(jsonMatch ? jsonMatch[0] : aiRaw);
+        } catch (e) {
+            // 兜底方案：如果 JSON 解析失败，按行切分并清洗
+            correctSentences = aiRaw.replace(/[\[\]"]/g, '').split('\n').filter(s => s.trim());
+        }
 
         const resBox = document.getElementById('transResult');
         const compareArea = document.getElementById('transComparisonArea');
         resBox.style.display = 'block';
         
-        let html = '<h3 style="margin-top:0; color:#e67e22; font-size:16px;">📋 对照批改结果：</h3>';
+        let html = '<h3 style="margin-top:0; color:#e67e22; font-size:16px;">📋 精准批改结果：</h3>';
         copySentenceQueue = [];
 
         translationTasks.forEach((t, i) => {
-            let correctText = cleanSentences[i] || "AI error, please retry";
+            let correctText = correctSentences[i] || "Wait, AI is confused. Please try again.";
             
-            // 二次清洗：防止 AI 输出重复的单词串
-            if (correctText.length > 100 && t.cn.length < 20) {
-                 correctText = "Wait, something went wrong. Please click submit again.";
-            }
+            // --- 过滤器：去除单词重复和中文字符（双保险） ---
+            correctText = correctText.replace(/[\u4e00-\u9fa5]/g, ''); // 删掉所有中文
+            // 简单的去重逻辑：如果一个词连续出现超过2次，只保留一次
+            correctText = correctText.replace(/\b(\w+)(\s+\1){2,}\b/gi, '$1');
 
             t.correctEn = correctText;
             copySentenceQueue.push(correctText);
 
             html += `
-                <div style="margin-bottom:12px; border:1px solid #eee; padding:12px; border-radius:12px; background:white;">
+                <div style="margin-bottom:12px; border:1px solid #eee; padding:12px; border-radius:12px; background:white; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                    <div style="font-size:13px; color:#8E8E93; margin-bottom:5px;">句 ${i+1}: ${t.cn}</div>
                     <div style="display:flex; gap:10px;">
                         <div style="flex:1; border-right:1px solid #f0f0f0; padding-right:8px;">
                             <small style="color:#e74c3c; font-weight:bold;">你的回答</small><br>
                             <span style="font-size:14px; color:#333;">${t.userEn || "(未填写)"}</span>
                         </div>
                         <div style="flex:1; padding-left:5px;">
-                            <small style="color:#27ae60; font-weight:bold;">地道参考</small><br>
-                            <b style="font-size:15px; color:#27ae60;">${correctText}</b>
+                            <small style="color:#34C759; font-weight:bold;">地道参考</small><br>
+                            <b style="font-size:15px; color:#1B5E20;">${correctText}</b>
                         </div>
                     </div>
                 </div>
@@ -1166,12 +1173,11 @@ async function gradeTranslations() {
         btn.disabled = false;
         btn.innerText = "✅ 提交 AI 批改";
 
-        // 启动抄写
         startCopyExercise();
 
     } catch (e) {
         console.error(e);
-        alert("批改请求失败，可能是网络原因，请重试。");
+        alert("批改失败，可能是网络拥堵。请稍后重试。");
         btn.disabled = false;
     }
 }
