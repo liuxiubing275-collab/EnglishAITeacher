@@ -107,14 +107,35 @@ async function loadAllData() {
 // ================= [4] 单词核心逻辑 =================
 function initGroupSelect() {
     const select = document.getElementById('groupSelect');
-    if(!select) return;
+    if (!select) return;
+    
+    const currentVal = select.value; // 记住当前选择，防止刷新时跳走
     select.innerHTML = '';
+    
+    // 1. 添加普通组
     const groupCount = Math.ceil(wordList.length / 10);
     for (let i = 0; i < groupCount; i++) {
         select.add(new Option(`📦 第 ${i + 1} 组`, i));
     }
+    
+    // 2. 添加全部练习
     select.add(new Option(`📚 全部练习`, 'all'));
-    select.value = 0;
+
+    // 3. 【关键修复】：添加生词本选项
+    let wrongWordsBook = JSON.parse(localStorage.getItem('eng_wrong_words') || '[]');
+    if (wrongWordsBook.length > 0) {
+        let opt = new Option(`❤️ 生词本 (${wrongWordsBook.length} 词)`, 'wrong_book');
+        opt.style.color = "red";
+        select.add(opt);
+    }
+    
+    // 4. 更新看板上的生词统计数字
+    const countSpan = document.getElementById('wrongWordsCount');
+    const staticArea = document.getElementById('wrongWordsStatic');
+    if (countSpan) countSpan.innerText = wrongWordsBook.length;
+    if (staticArea) staticArea.style.display = wrongWordsBook.length > 0 ? 'block' : 'none';
+
+    select.value = currentVal || 0;
 }
 
 function getGroupBounds() {
@@ -374,15 +395,15 @@ function showGroupTestResult() {
         const userAnswer = groupTestAnswers[i].toLowerCase().trim();
         const correctAnswer = target.en.toLowerCase().trim();
         
-        const isOk = (userAnswer === correctAnswer);
+        const isOk = groupTestAnswers[i].toLowerCase().trim() === target.en.toLowerCase().trim();
         
         if (isOk) {
             correctCount++;
             // 【科学逻辑】：如果写对了，尝试从生词本中移除
-            wrongWordsBook = wrongWordsBook.filter(item => item.en.toLowerCase() !== correctAnswer);
+            wrongWordsBook = wrongWordsBook.filter(item => item.en.toLowerCase() !== target.en.toLowerCase());
         } else {
-            // 【科学逻辑】：如果写错了，加入生词本（检查是否已存在）
-            if (!wrongWordsBook.some(item => item.en.toLowerCase() === correctAnswer)) {
+            // 写错了，加入生词本
+            if (!wrongWordsBook.some(item => item.en.toLowerCase() === target.en.toLowerCase())) {
                 wrongWordsBook.push(target);
             }
         }
@@ -402,6 +423,7 @@ function showGroupTestResult() {
     
     // 重新初始化下拉框，以刷新生词本的数量显示
     initGroupSelect();
+    pushToCloud();
 }
 
 // ================= [从测验模式返回到练习模式] =================
@@ -745,7 +767,10 @@ async function sendChatMessage() {
     try {
         const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
             method: 'POST',
-            headers: {'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json'},
+            headers: {
+    'Authorization': `Bearer ${key}`, 
+    'Content-Type': 'application/json'
+},
             body: JSON.stringify({model:'Qwen/Qwen2.5-7B-Instruct', messages: chatHistory})
         });
         const data = await res.json();
@@ -811,4 +836,20 @@ function closeMemoryPalace() { document.getElementById('memoryPalaceArea').style
 function toggleSettings() { 
     const s = document.getElementById('settingsCard');
     s.style.display = (s.style.display === 'none' ? 'block' : 'none');
+}
+
+function jumpToWrongBook() {
+    const select = document.getElementById('groupSelect');
+    if (select) {
+        // 先检查生词本选项是否存在
+        let hasWrongBook = Array.from(select.options).some(opt => opt.value === 'wrong_book');
+        if (hasWrongBook) {
+            select.value = 'wrong_book';
+            changeGroup(); // 触发切换
+            // 自动滚动到练习区
+            document.getElementById('page-words').scrollIntoView({ behavior: 'smooth' });
+        } else {
+            alert("目前生词本是空的哦！");
+        }
+    }
 }
