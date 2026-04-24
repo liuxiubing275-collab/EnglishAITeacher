@@ -293,32 +293,75 @@ function jumpToGroup(idx) {
 }
 
 // ================= [7] AI 生成功能 (故事与翻译) =================
-
+// ================= [终极修正：防崩溃 AI 故事生成] =================
 async function generateGroupStory() {
     const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) return alert("请存 API Key");
+    if (!apiKey) return alert("请先设置 API Key");
+
     const bounds = getGroupBounds();
     let words = [];
     let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
-    for(let i=bounds.start; i<=bounds.end; i++) if(source[i]) words.push(source[i].en);
+    
+    for (let i = bounds.start; i <= bounds.end; i++) {
+        if (source[i]) words.push(source[i].en);
+    }
+    if (words.length === 0) return alert("当前组没有单词");
 
     const box = document.getElementById('groupStoryContent');
-    document.getElementById('groupStoryArea').style.display="block";
-    box.innerHTML = "⏳ AI 正在创作防死循环故事...";
+    document.getElementById('groupStoryArea').style.display = 'block';
+    box.innerHTML = `<p style="color:#8e44ad;">⏳ AI 正在严格构思故事，请稍候...</p>`;
+
+    // 强力约束：不许废话，只要故事
+    const prompt = `Task: Write a simple 5-sentence story in English using these 10 words: [${words.join(", ")}].
+    1. Bold the 10 words like **word**.
+    2. Write English first, then '---', then Chinese translation.
+    3. NO chatter like "Certainly" or "Here is". NO repetition.`;
 
     try {
-        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
             method: 'POST',
-            headers: {'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
-                model:'Qwen/Qwen2.5-7B-Instruct', 
-                messages: [{role:"user", content: `Write a short English story with [${words.join(", ")}]. Bold the words. Add translation after '---'.`}],
-                temperature: 0.3, frequency_penalty: 1.2
+                model: 'Qwen/Qwen2.5-7B-Instruct',
+                messages: [
+                    { role: "system", content: "You are a translation machine. Output ONLY English story, '---', and Chinese translation. NEVER repeat words." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.1,      // 极低随机性，防止乱码
+                top_p: 0.1,
+                frequency_penalty: 2.0, // 最高等级重复惩罚
+                max_tokens: 500
             })
         });
-        const data = await res.json();
-        box.innerHTML = data.choices[0].message.content.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-    } catch(e) { box.innerText = "生成失败"; }
+
+        const data = await response.json();
+        let fullText = data.choices[0].message.content.trim();
+
+        // --- 物理清洗逻辑：过滤 AI 废话和重复词 ---
+        // 1. 过滤开场白
+        fullText = fullText.replace(/Certainly!|Here is the story|Here is a story|Sure!/gi, "").trim();
+        
+        // 2. 物理去重逻辑（连续重复的单词只留一个）
+        let rawWords = fullText.split(/\s+/);
+        let cleanedArray = [];
+        for(let i=0; i<rawWords.length; i++) {
+            if (i > 0 && rawWords[i].toLowerCase() === rawWords[i-1].toLowerCase()) continue;
+            cleanedArray.push(rawWords[i]);
+        }
+        fullText = cleanedArray.join(' ');
+
+        // 3. 渲染（高亮单词）
+        box.innerHTML = fullText
+            .replace(/\n/g, '<br>')
+            .replace(/\*\*(.*?)\*\*/g, '<b style="color:#e67e22; background:#fff5eb; padding:0 2px;">$1</b>');
+
+    } catch (error) {
+        console.error(error);
+        box.innerText = "生成失败，请点击按钮重试。";
+    }
 }
 
 async function startTranslationChallenge() {
