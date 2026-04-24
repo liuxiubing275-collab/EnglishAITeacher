@@ -404,6 +404,33 @@ function showGroupTestResult() {
     initGroupSelect();
 }
 
+// ================= [从测验模式返回到练习模式] =================
+
+function quitGroupTest() {
+    // 1. 隐藏测验运行界面和结果展示界面
+    const groupMode = document.getElementById('dictationGroupMode');
+    const resultMode = document.getElementById('dictationResultMode');
+    const singleMode = document.getElementById('dictationSingleMode');
+
+    if (groupMode) groupMode.style.display = 'none';
+    if (resultMode) resultMode.style.display = 'none';
+
+    // 2. 重新显示自由练习（单词练习）界面
+    if (singleMode) singleMode.style.display = 'block';
+
+    // 3. 核心修复：强制取消单词模糊效果，让单词恢复清晰
+    const wordEl = document.getElementById('targetWord');
+    if (wordEl) {
+        wordEl.style.filter = 'none';
+    }
+
+    // 4. 刷新当前单词显示，确保界面数据同步
+    updateWordDisplay();
+
+    // 5. 自动滚动回到顶部，方便继续练习
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 // ================= [5] 云端同步与看板 =================
 function getLocalDateString(date) {
     let y = date.getFullYear(), m = (date.getMonth()+1).toString().padStart(2,'0'), d = date.getDate().toString().padStart(2,'0');
