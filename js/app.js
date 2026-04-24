@@ -730,7 +730,95 @@ async function generateRevisionStory() {
     } catch(e) { box.innerText = "生成失败"; }
 }
 
-async function generateGroupStory() { generateRevisionStory(); }
+// ================= [修正：本组 10 词 AI 故事生成] =================
+async function generateGroupStory() {
+    // 1. 获取 API Key
+    const apiKey = localStorage.getItem('silicon_api_key');
+    if (!apiKey) return alert("请先在‘互动聊天’板块设置并保存 API Key！");
+
+    // 2. 获取当前选中组的 10 个单词
+    const bounds = getGroupBounds();
+    let currentWords = [];
+    
+    // 如果是生词本模式，抓取生词本前10个
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    
+    for (let i = bounds.start; i <= bounds.end; i++) {
+        if (source[i]) currentWords.push(source[i].en);
+    }
+
+    if (currentWords.length === 0) return alert("当前组内没有单词，无法生成故事。");
+
+    // 3. UI 状态切换
+    const storyArea = document.getElementById('groupStoryArea');
+    const storyContent = document.getElementById('groupStoryContent');
+    
+    if (!storyArea || !storyContent) return alert("找不到显示区域 (groupStoryArea)");
+
+    storyArea.style.display = 'block';
+    storyContent.innerHTML = `<p style="color:#8e44ad;">⏳ AI 老师正在针对这 ${currentWords.length} 个单词构思情境...</p>`;
+    storyArea.scrollIntoView({ behavior: 'smooth' });
+
+    // 4. 构建 Prompt
+    const prompt = `你是一位英语老师。请使用以下单词编写一段连贯、地道的英语短文（约 100 词）：[${currentWords.join(", ")}]。
+    要求：
+    1. 单词在文中必须 **加粗**。
+    2. 必须附带中文翻译，中间用 --- 分隔。
+    3. 严禁输出除了故事和翻译以外的任何废话。`;
+
+    // 5. 调用 API
+    try {
+        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'Qwen/Qwen2.5-7B-Instruct',
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.7
+            })
+        });
+
+        const data = await response.json();
+        const fullText = data.choices[0].message.content;
+
+        // 6. 渲染结果（处理加粗和换行）
+        storyContent.innerHTML = fullText
+            .replace(/\n/g, '<br>')
+            .replace(/\*\*(.*?)\*\*/g, '<b style="color:#e67e22;">$1</b>');
+
+    } catch (error) {
+        console.error(error);
+        storyContent.innerText = "⚠️ 生成失败，请检查网络或 API Key。";
+    }
+}
+
+function transferGroupStoryToArticle() {
+    const box = document.getElementById('groupStoryContent');
+    if (!box || box.innerText.includes("正在针对")) return;
+
+    // 分离中英文
+    const fullText = box.innerText;
+    const parts = fullText.split('---');
+    currentArticleText = parts[0].trim();
+    
+    // 跳转并注入
+    switchTab('articles');
+    const articleDisplay = document.getElementById('articleDisplay');
+    articleDisplay.innerHTML = `
+        <div style="border-left: 4px solid #8e44ad; padding-left: 10px; background: #fdf6ff; padding: 15px; border-radius: 12px;">
+            <p style="color: #8e44ad; font-weight: bold; font-size: 14px;">✨ 本组 AI 挑战故事：</p>
+            <p style="font-weight: 500; font-size: 18px;">${currentArticleText}</p>
+            <p style="color: #7f8c8d; font-size: 15px; margin-top: 15px;">${parts[1] || ""}</p>
+        </div>
+    `;
+
+    // 重置相关状态
+    if (typeof quitArticleDictation === 'function') quitArticleDictation();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
 function generateGroupMemoryPalace() {
     const bounds = getGroupBounds();
