@@ -732,30 +732,41 @@ async function generateRevisionStory() {
 
 // ================= [终极修正：防死循环版 10词故事生成] =================
 async function generateGroupStory() {
+    // 1. 获取 API Key
     const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) return alert("请先设置 API Key");
-
-    const bounds = getGroupBounds();
-    let currentWords = [];
-    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
-    
-    for (let i = bounds.start; i <= bounds.end; i++) {
-        if (source[i]) currentWords.push(source[i].en);
+    if (!apiKey) {
+        alert("请先在‘互动聊天’版块设置并保存 API Key！");
+        return;
     }
 
-    if (currentWords.length === 0) return alert("当前组内没有单词");
+    // 2. 获取当前组单词
+    const bounds = getGroupBounds();
+    let currentWords = [];
+    for (let i = bounds.start; i <= bounds.end; i++) {
+        if (wordList[i] && wordList[i].en) {
+            currentWords.push(wordList[i].en);
+        }
+    }
 
+    if (currentWords.length === 0) {
+        alert("当前组没有单词，请先选择一个单词组。");
+        return;
+    }
+
+    // 3. UI 状态
     const storyArea = document.getElementById('groupStoryArea');
     const storyContent = document.getElementById('groupStoryContent');
+    if (!storyArea) {
+        alert("HTML中缺少 id='groupStoryArea' 的显示区域");
+        return;
+    }
+
     storyArea.style.display = 'block';
-    storyContent.innerHTML = `<p style="color:#8e44ad;">⏳ AI 老师正在全力避免逻辑死循环，为您构思故事...</p>`;
+    storyContent.innerText = "正在构思故事...";
     storyArea.scrollIntoView({ behavior: 'smooth' });
 
-    // 更简单的指令，降低模型负担
-    const prompt = `Write a 100-word story including these words: [${currentWords.join(", ")}]. 
-    1. Bold the words like **word**.
-    2. Add '---' then the Chinese translation.
-    3. No gibberish. No repetition.`;
+    // 4. 发送 API 请求
+    const prompt = `使用以下 10 个单词编写一段连贯的英语短文（约 100 词），单词需加粗。结尾附带中文翻译，中间用 --- 分隔：[${currentWords.join(", ")}]`;
 
     try {
         const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
@@ -766,44 +777,47 @@ async function generateGroupStory() {
             },
             body: JSON.stringify({
                 model: 'Qwen/Qwen2.5-7B-Instruct',
-                messages: [
-                    { role: "system", content: "You are a professional teacher. Write a short story. Never repeat the same phrase infinitely." },
-                    { role: "user", content: prompt }
-                ],
-                temperature: 0.4,       // 降低随机性，更稳定
-                top_p: 0.7,             // 限制采样范围
-                max_tokens: 800,        // 强制限制总长度，防止无限输出
-                frequency_penalty: 1.2, // 【关键】频率惩罚，防止单词重复循环
-                presence_penalty: 1.0   // 【关键】存在惩罚，强制 AI 聊新话题
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.7
             })
         });
 
         const data = await response.json();
-        let fullText = data.choices[0].message.content.trim();
+        const fullText = data.choices[0].message.content;
 
-        // --- 物理去重逻辑：如果 AI 还是抽风输出了重复的短语，前端强行截断 ---
-        const phrases = fullText.split(' ');
-        let cleanedPhrases = [];
-        for(let i=0; i<phrases.length; i++) {
-            // 如果连续三个词跟前面的一模一样，说明进入死循环，直接停止
-            if (i > 10 && phrases[i] === phrases[i-1] && phrases[i] === phrases[i-2]) {
-                cleanedPhrases.push("...(Loop detected and stopped)");
-                break;
-            }
-            cleanedPhrases.push(phrases[i]);
-        }
-        fullText = cleanedPhrases.join(' ');
-
-        // 渲染结果
+        // 5. 渲染到界面
         storyContent.innerHTML = fullText
             .replace(/\n/g, '<br>')
-            .replace(/\*\*(.*?)\*\*/g, '<b style="color:#e67e22; background:#fff5eb; padding:0 2px;">$1</b>');
+            .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#e67e22;">$1</strong>');
 
     } catch (error) {
         console.error(error);
-        storyContent.innerText = "⚠️ 生成失败，可能是模型由于逻辑冲突强制中断了。请再试一次。";
+        storyContent.innerText = "⚠️ 生成失败，请检查网络或 API Key。";
     }
 }
+
+// 联动：同步到文章板块
+function transferGroupStoryToArticle() {
+    const storyBox = document.getElementById('groupStoryContent');
+    if (!storyBox || storyBox.innerText.includes("正在构思")) return;
+
+    const parts = storyBox.innerText.split('---');
+    currentArticleText = parts[0].trim();
+    
+    switchTab('articles');
+    
+    const articleDisplay = document.getElementById('articleDisplay');
+    articleDisplay.innerHTML = `
+        <div style="border-left: 4px solid #8e44ad; padding-left: 10px; background: #fdf6ff;">
+            <p style="color: #8e44ad; font-weight: bold;">✨ AI 单词挑战故事：</p>
+            <p>${currentArticleText}</p>
+            <p style="color: #7f8c8d; font-size: 14px;">${parts[1] || ""}</p>
+        </div>
+    `;
+    quitArticleDictation();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 
 function transferGroupStoryToArticle() {
     const box = document.getElementById('groupStoryContent');
