@@ -17,7 +17,8 @@
     <!-- 让网页更像原生 App 的额外配置 -->
     <meta name="theme-color" content="#007AFF"> <!-- 状态栏颜色 -->    
     <title>AI 英语私教</title>
-    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>    
+
     <style>
         :root {
             --primary: #007AFF;      /* 科技蓝 */
@@ -149,6 +150,7 @@
         .btn-mic { background: var(--warning); color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 20px; cursor: pointer; }
     </style>
 </head>
+
 <body>
 
     <h1>🚀 AI 英语私教</h1>
@@ -374,6 +376,32 @@
             <input type="password" id="siliconApiKey" placeholder="在此输入 API Key (sk-...)">
             <button class="action-btn" onclick="saveApiKey()">💾 保存并隐藏</button>
             <p id="apiKeyStatus" style="font-size: 12px; color: var(--text-sub); text-align: center; margin-top: 8px;">Key 仅保存在本地，非常安全</p>
+    <!-- ================= 新增：云端自动同步区 ================= -->
+    <div id="cloudSyncArea" style="margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px;">
+        <h2 style="font-size: 18px; color: var(--primary);">☁️ 云端自动同步</h2>
+        
+        <!-- 登录前显示：输入邮箱 -->
+        <div id="authSection">
+            <input type="text" id="syncEmail" placeholder="输入邮箱地址 (例如: user@example.com)" style="margin-top:0;">
+            <button class="action-btn btn-purple" onclick="handleLogin()" style="margin-top:10px;">发送登录链接到邮箱</button>
+            <p style="font-size: 11px; color: #8e8e93; margin-top: 8px; line-height: 1.4;">
+                * <b>无感同步说明：</b><br>
+                输入邮箱并点击邮件中的链接后，系统会自动将你的 1247 进度、API Key 同步到云端。在另一台设备登录相同邮箱即可瞬间恢复。
+            </p>
+        </div>
+
+        <!-- 登录后显示：用户信息与状态 -->
+        <div id="userSection" style="display:none; background: #f8f9ff; padding: 15px; border-radius: 12px;">
+            <p id="userEmailDisplay" style="font-size: 14px; font-weight: bold; color: var(--primary); margin: 0 0 10px 0;"></p>
+            <div class="row-buttons">
+                <button class="action-btn btn-secondary" onclick="manualPush()" style="font-size: 12px; padding: 8px;">手动备份</button>
+                <button class="action-btn btn-secondary" onclick="handleLogout()" style="font-size: 12px; padding: 8px; color: var(--danger);">退出登录</button>
+            </div>
+            <p id="syncStatus" style="font-size: 11px; color: var(--success); margin-top: 8px; text-align: center;">● 云端实时同步已开启</p>
+        </div>
+    </div>
+    <!-- ======================================================= -->
+
         </div>
 
         <div class="nav-bar" style="margin-bottom: 15px;">

@@ -2,6 +2,82 @@
  * AI 英语私教 - 终极功能整合版
  * 包含：基础控制、单词练习、拼写测验、1247看板、AI故事、记忆宫殿、文章听写、AI对话
  */
+// 1. 初始化 Supabase (填入你第一步获取的 URL 和 Key)
+const supabaseUrl = '你的Project_URL';
+const supabaseKey = '你的anon_key';
+const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+// 2. 监听登录状态
+supabase.auth.onAuthStateChange((event, session) => {
+    if (session) {
+        document.getElementById('authSection').style.display = 'none';
+        document.getElementById('userSection').style.display = 'block';
+        document.getElementById('userEmailDisplay').innerText = "已登录: " + session.user.email;
+        pullFromCloud(); // 登录后自动下载云端进度
+    } else {
+        document.getElementById('authSection').style.display = 'block';
+        document.getElementById('userSection').style.display = 'none';
+    }
+});
+
+// 3. 登录逻辑 (无密码登录)
+async function handleLogin() {
+    const email = document.getElementById('syncEmail').value;
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    if (error) alert(error.message);
+    else alert("验证邮件已发送！请在手机/电脑上点击邮件链接完成登录。");
+}
+
+// 4. 将本地数据推送到云端 (无感同步的核心)
+async function pushToCloud() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const progressData = {
+        eng_study_history: localStorage.getItem('eng_study_history'),
+        selected_book_path: localStorage.getItem('selected_book_path'),
+        silicon_api_key: localStorage.getItem('silicon_api_key')
+    };
+
+    const { error } = await supabase
+        .from('user_progress')
+        .upsert({ id: user.id, data: progressData, updated_at: new Date() });
+    
+    if (!error) console.log("云端同步成功");
+}
+
+// 5. 从云端拉取数据并覆盖本地
+async function pullFromCloud() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+        .from('user_progress')
+        .select('data')
+        .single();
+
+    if (data && data.data) {
+        const cloudData = data.data;
+        let changed = false;
+        for (let key in cloudData) {
+            if (cloudData[key] && localStorage.getItem(key) !== cloudData[key]) {
+                localStorage.setItem(key, cloudData[key]);
+                changed = true;
+            }
+        }
+        if (changed) {
+            console.log("本地已更新为云端进度");
+            // 只有当历史记录发生变化时才刷新界面，避免死循环
+            updateDailyDashboard(); 
+        }
+    }
+}
+
+// 6. 退出登录
+async function handleLogout() {
+    await supabase.auth.signOut();
+    location.reload();
+}
 
 // ================= [1] 全局变量 =================
 let activeUtterance = null;
@@ -416,6 +492,7 @@ function markCurrentGroupFinished() {
     localStorage.setItem('eng_study_history', JSON.stringify(history));
     alert("🎉 记录成功！复习清单已更新。");
     updateDailyDashboard();
+    pushToCloud(); 
 }
 
 function updateDailyDashboard() {
