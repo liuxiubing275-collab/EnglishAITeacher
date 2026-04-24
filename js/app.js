@@ -24,6 +24,7 @@ let translationTasks = [];
 let copySentenceQueue = [];
 let currentCopyCount = 0;
 let artChallengeData = [];
+let isWrongBookMode = false;
 
 // ================= [2] 初始化逻辑 =================
 window.onload = function() {
@@ -125,22 +126,144 @@ function getGroupBounds() {
 }
 
 function updateWordDisplay() {
-    if (wordList.length === 0) return;
-    const wordObj = wordList[currentWordIndex];
-    const bounds = getGroupBounds();
+    // 1. 确定数据源：是练习普通课本，还是在练习生词本
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    
+    // 2. 空列表处理：如果生词本练完了
+    if (source.length === 0) {
+        if (isWrongBookMode) {
+            alert("🎉 太棒了！生词本中的单词已全部掌握！");
+            isWrongBookMode = false;
+            document.getElementById('groupSelect').value = 0; // 切回第一组
+            loadAllData(); // 重新加载数据
+        }
+        return;
+    }
 
-    document.getElementById('targetWord').innerText = wordObj.en;
-    document.getElementById('wordCounter').innerText = `${currentWordIndex - bounds.start + 1} / ${bounds.total}`;
-    const zhEl = document.getElementById('chineseMeaning');
-    zhEl.innerText = wordObj.zh; zhEl.style.display = 'none';
+    // 3. 获取当前单词对象
+    // 确保索引不越界（尤其是在生词本数量变动时）
+    if (currentWordIndex >= source.length) currentWordIndex = 0;
+    const wordObj = source[currentWordIndex];
 
+    // 4. 更新单词文本和计数器
+    const wordEl = document.getElementById('targetWord');
+    const counterEl = document.getElementById('wordCounter');
+    
+    if (wordEl) wordEl.innerText = wordObj.en;
+    if (counterEl) {
+        // 如果是生词本模式，显示总数；如果是普通模式，显示组内进度
+        const total = isWrongBookMode ? source.length : getGroupBounds().total;
+        const current = isWrongBookMode ? (currentWordIndex + 1) : (currentWordIndex - getGroupBounds().start + 1);
+        counterEl.innerText = `${current} / ${total}`;
+    }
+
+    // 5. 更新中文释义（默认隐藏）
+    const chineseEl = document.getElementById('chineseMeaning');
+    if (chineseEl) {
+        chineseEl.innerText = wordObj.zh;
+        chineseEl.style.display = 'none';
+    }
+
+    // 6. 更新例句显示（处理换行逻辑）
     const exBox = document.getElementById('exampleSentence');
-    const parts = wordObj.ex.split("中文：");
-    exBox.innerHTML = parts.length > 1 ? 
-        `<div>${parts[0]}</div><div style="color:#8e8e93; font-size:0.9em; border-top:1px solid #eee; margin-top:5px; padding-top:5px;">${parts[1]}</div>` : 
-        wordObj.ex;
-    exBox.style.display = 'none';
-    document.getElementById('targetWord').style.filter = 'none';
+    if (exBox) {
+        const exParts = wordObj.ex.split("中文：");
+        if (exParts.length > 1) {
+            exBox.innerHTML = `
+                <div style="font-weight:500; color:#2c3e50;">${exParts[0].trim()}</div>
+                <div style="color:#8e8e93; font-size:0.9em; margin-top:8px; border-top:1px solid #f0f0f0; padding-top:8px;">
+                    <span style="background:#eee; padding:2px 5px; border-radius:4px; font-size:0.8em; margin-right:5px;">译</span>
+                    ${exParts[1].trim()}
+                </div>`;
+        } else {
+            exBox.innerHTML = `<div style="color:#2c3e50;">${wordObj.ex}</div>`;
+        }
+        exBox.style.display = 'none'; // 默认隐藏
+    }
+
+    // 7. 状态清理
+    const resultEl = document.getElementById('wordResult');
+    const dictResultEl = document.getElementById('dictationResult');
+    const dictInput = document.getElementById('dictationInput');
+    
+    if (resultEl) resultEl.innerText = "";
+    if (dictResultEl) dictResultEl.innerText = "";
+    if (dictInput) dictInput.value = "";
+
+    // 8. 模式判定：练习模式下强制单词清晰，除非正在测验
+    if (wordEl) {
+        const isTesting = document.getElementById('dictationGroupMode').style.display === 'block';
+        wordEl.style.filter = isTesting ? 'blur(8px)' : 'none';
+    }
+}
+
+// ================= [自由练习模式的拼写检查逻辑] =================
+
+function checkDictation() {
+    // 1. 获取当前数据源（普通课本或生词本）
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    
+    if (source.length === 0) return;
+
+    // 2. 获取用户输入和标准答案
+    const userInput = document.getElementById('dictationInput').value.trim().toLowerCase();
+    const targetWordObj = source[currentWordIndex];
+    const correctAnswer = targetWordObj.en.toLowerCase().trim();
+    
+    const resultEl = document.getElementById('dictationResult');
+    const wordEl = document.getElementById('targetWord');
+
+    // 3. 读取生词本用于更新
+    let wrongWordsBook = JSON.parse(localStorage.getItem('eng_wrong_words') || '[]');
+
+    if (userInput === "") {
+        resultEl.style.color = "#FF9500";
+        resultEl.innerText = "⚠️ 请先输入单词！";
+        return;
+    }
+
+    if (userInput === correctAnswer) {
+        // --- 情况 A：拼写正确 ---
+        resultEl.style.color = "#27ae60";
+        resultEl.innerHTML = "✅ 完全正确！";
+        
+        // 视觉反馈：让模糊的单词变清晰
+        if (wordEl) wordEl.style.filter = "none";
+
+        // 【科学逻辑】：既然写对了，就从生词本中移除该词（如果原本在里面）
+        wrongWordsBook = wrongWordsBook.filter(item => item.en.toLowerCase() !== correctAnswer);
+        localStorage.setItem('eng_wrong_words', JSON.stringify(wrongWordsBook));
+        
+        // 更新下拉菜单的数量显示
+        initGroupSelect();
+        // 同步到云端
+        if (typeof pushToCloud === 'function') pushToCloud();
+
+        // 1.5秒后自动跳转到下一个词
+        setTimeout(() => {
+            nextWord();
+        }, 1500);
+
+    } else {
+        // --- 情况 B：拼写错误 ---
+        resultEl.style.color = "#e74c3c";
+        resultEl.innerHTML = "❌ 拼写有误，再试一次。";
+        
+        // 【科学逻辑】：拼错了，自动加入生词本（避免重复添加）
+        const alreadyIn = wrongWordsBook.some(item => item.en.toLowerCase() === correctAnswer);
+        if (!alreadyIn) {
+            wrongWordsBook.push(targetWordObj);
+            localStorage.setItem('eng_wrong_words', JSON.stringify(wrongWordsBook));
+            
+            // 更新下拉菜单的数量显示
+            initGroupSelect();
+            // 同步到云端
+            if (typeof pushToCloud === 'function') pushToCloud();
+        }
+        
+        // 选中输入框文字，方便用户修改
+        document.getElementById('dictationInput').select();
+    }
 }
 
 function nextWord() {
@@ -154,19 +277,131 @@ function restartWords() { currentWordIndex = getGroupBounds().start; updateWordD
 function toggleMeaning() { const el = document.getElementById('chineseMeaning'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
 function toggleBlur() { const el = document.getElementById('targetWord'); el.style.filter = el.style.filter === 'blur(8px)' ? 'none' : 'blur(8px)'; }
 
+// 修改 1：读单词
 function readTargetWord() {
     window.speechSynthesis.cancel();
-    document.getElementById('targetWord').style.filter = 'none';
-    const u = new SpeechSynthesisUtterance(wordList[currentWordIndex].en);
-    u.lang = 'en-US'; window.speechSynthesis.speak(u);
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    const wordEl = document.getElementById('targetWord');
+    if (wordEl) wordEl.style.filter = 'none';
+    
+    const u = new SpeechSynthesisUtterance(source[currentWordIndex].en);
+    u.lang = 'en-US';
+    window.speechSynthesis.speak(u);
 }
 
 function showAndPlayExample() {
     document.getElementById('exampleSentence').style.display = 'block';
-    let text = wordList[currentWordIndex].ex.split("中文：")[0].replace(/[^\x00-\xff]/g, '').trim();
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    let speechText = source[currentWordIndex].ex.split("中文：")[0].replace(/[^\x00-\xff]/g, '').trim();
+    
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US';
+    const u = new SpeechSynthesisUtterance(speechText);
+    u.lang = 'en-US';
     window.speechSynthesis.speak(u);
+}
+
+// ================= [测验模块：含生词本逻辑] =================
+
+// 1. 开始【本组连续测验】
+function startGroupTest() {
+    // 确定测验的数据源（是普通课本还是生词本）
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    let bounds = getGroupBounds();
+    
+    // 如果是生词本模式，范围就是整个生词本
+    groupTestBounds = isWrongBookMode ? { start: 0, end: source.length - 1, total: source.length } : bounds;
+    
+    if (source.length === 0) return alert("没有单词可以测试");
+
+    groupTestAnswers = []; 
+    groupTestCurrentIndex = 0;
+
+    // UI 切换
+    document.getElementById('dictationSingleMode').style.display = 'none';
+    document.getElementById('dictationGroupMode').style.display = 'block';
+    document.getElementById('dictationResultMode').style.display = 'none';
+    
+    // 强制模糊单词
+    document.getElementById('targetWord').style.filter = 'blur(8px)';
+    
+    playTestWord();
+}
+
+// 2. 播放测验单词
+function playTestWord() {
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    const wordObj = source[groupTestBounds.start + groupTestCurrentIndex];
+    
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(wordObj.en);
+    u.lang = 'en-US';
+    window.speechSynthesis.speak(u);
+    
+    document.getElementById('groupTestProgress').innerText = `测验中: ${groupTestCurrentIndex + 1} / ${groupTestBounds.total}`;
+    setTimeout(() => { document.getElementById('groupTestInput').focus(); }, 200);
+}
+
+// 3. 提交当前单词并进入下一个 (你缺失的函数)
+function submitTestWord() {
+    const inputEl = document.getElementById('groupTestInput');
+    groupTestAnswers.push(inputEl.value.trim());
+    inputEl.value = "";
+    
+    groupTestCurrentIndex++;
+    
+    if (groupTestCurrentIndex < groupTestBounds.total) {
+        playTestWord();
+    } else {
+        showGroupTestResult();
+    }
+}
+
+// 4. 显示结果并管理生词本 (你缺失的函数)
+function showGroupTestResult() {
+    document.getElementById('dictationGroupMode').style.display = 'none';
+    document.getElementById('dictationResultMode').style.display = 'block';
+    
+    let correctCount = 0;
+    let html = "";
+    
+    // 获取当前测验的数据源
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    // 获取生词本用于更新
+    let wrongWordsBook = JSON.parse(localStorage.getItem('eng_wrong_words') || '[]');
+
+    for (let i = 0; i < groupTestBounds.total; i++) {
+        const target = source[groupTestBounds.start + i];
+        const userAnswer = groupTestAnswers[i].toLowerCase().trim();
+        const correctAnswer = target.en.toLowerCase().trim();
+        
+        const isOk = (userAnswer === correctAnswer);
+        
+        if (isOk) {
+            correctCount++;
+            // 【科学逻辑】：如果写对了，尝试从生词本中移除
+            wrongWordsBook = wrongWordsBook.filter(item => item.en.toLowerCase() !== correctAnswer);
+        } else {
+            // 【科学逻辑】：如果写错了，加入生词本（检查是否已存在）
+            if (!wrongWordsBook.some(item => item.en.toLowerCase() === correctAnswer)) {
+                wrongWordsBook.push(target);
+            }
+        }
+        
+        html += `<li class="${isOk ? 'correct-item' : 'incorrect-item'}" style="margin-bottom:10px; padding:10px; border-radius:8px; list-style:none; background:#f8f9fa;">
+                    <b>${target.en}</b>: ${isOk ? '✅' : '❌ 你写了: ' + (groupTestAnswers[i] || "(留空)")}
+                    <br><small style="color:#666;">${target.zh}</small>
+                 </li>`;
+    }
+
+    // 保存生词本到本地并同步云端
+    localStorage.setItem('eng_wrong_words', JSON.stringify(wrongWordsBook));
+    if (typeof pushToCloud === 'function') pushToCloud();
+
+    document.getElementById('groupTestScore').innerHTML = `正确率: ${Math.round(correctCount / groupTestBounds.total * 100)}%`;
+    document.getElementById('groupTestResultList').innerHTML = html;
+    
+    // 重新初始化下拉框，以刷新生词本的数量显示
+    initGroupSelect();
 }
 
 // ================= [5] 云端同步与看板 =================
@@ -221,6 +456,19 @@ function markCurrentGroupFinished() {
     localStorage.setItem('eng_study_history', JSON.stringify(history));
     updateDailyDashboard(); pushToCloud();
     alert("🎉 记录成功，云端已同步！");
+}
+
+function changeGroup() {
+    const val = document.getElementById('groupSelect').value;
+    
+    if (val === 'wrong_book') {
+        isWrongBookMode = true;
+        currentWordIndex = 0;
+    } else {
+        isWrongBookMode = false;
+        currentWordIndex = getGroupBounds().start;
+    }
+    updateWordDisplay();
 }
 
 function updateDailyDashboard() {
