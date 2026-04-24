@@ -1,7 +1,7 @@
 // ================= [0] Supabase 云端初始化 =================
 // 请在此处填入你在 Supabase 官网获取的真实参数
-const supabaseUrl = 'https://xxxxxxxxxxxx.supabase.co'; 
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; 
+const supabaseUrl = 'https://bhilewmilbhxowxwwyfq.supabase.co/rest/v1/'; 
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoaWxld21pbGJoeG93eHd3eWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTYyNTUsImV4cCI6MjA5MjUzMjI1NX0._Kj-4i2KTU7LO07AwNkKAta-0qluh4BygU_OMwAKc6o'; 
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // ================= [1] 全局变量定义 =================
