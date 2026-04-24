@@ -730,7 +730,7 @@ async function generateRevisionStory() {
     } catch(e) { box.innerText = "生成失败"; }
 }
 
-// ================= [终极修正：强力约束版 10词故事生成] =================
+// ================= [终极修正：防死循环版 10词故事生成] =================
 async function generateGroupStory() {
     const apiKey = localStorage.getItem('silicon_api_key');
     if (!apiKey) return alert("请先设置 API Key");
@@ -748,18 +748,14 @@ async function generateGroupStory() {
     const storyArea = document.getElementById('groupStoryArea');
     const storyContent = document.getElementById('groupStoryContent');
     storyArea.style.display = 'block';
-    storyContent.innerHTML = `<p style="color:#8e44ad;">⏳ AI 老师正在为你创作纯净版故事...</p>`;
+    storyContent.innerHTML = `<p style="color:#8e44ad;">⏳ AI 老师正在全力避免逻辑死循环，为您构思故事...</p>`;
     storyArea.scrollIntoView({ behavior: 'smooth' });
 
-    // 【核心改进】：强力指令，强制分离语言逻辑
-    const prompt = `Task: Write a short, coherent story in ENGLISH using these words: [${currentWords.join(", ")}].
-    
-    Requirements:
-    1. Write the story in pure, natural ENGLISH first (about 100 words).
-    2. BOLD each target word using **word** format.
-    3. After the story, add a separator "---".
-    4. Then provide the Chinese translation.
-    5. STRICTLY FORBIDDEN: Do not mix Chinese into the English part. Do not output words like "user" or "AI".`;
+    // 更简单的指令，降低模型负担
+    const prompt = `Write a 100-word story including these words: [${currentWords.join(", ")}]. 
+    1. Bold the words like **word**.
+    2. Add '---' then the Chinese translation.
+    3. No gibberish. No repetition.`;
 
     try {
         const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
@@ -771,19 +767,32 @@ async function generateGroupStory() {
             body: JSON.stringify({
                 model: 'Qwen/Qwen2.5-7B-Instruct',
                 messages: [
-                    { role: "system", content: "You are a professional English novelist. You only output a high-quality story and its translation. No chatter." },
+                    { role: "system", content: "You are a professional teacher. Write a short story. Never repeat the same phrase infinitely." },
                     { role: "user", content: prompt }
                 ],
-                temperature: 0.7, // 保持一定的创造力
-                max_tokens: 1000
+                temperature: 0.4,       // 降低随机性，更稳定
+                top_p: 0.7,             // 限制采样范围
+                max_tokens: 800,        // 强制限制总长度，防止无限输出
+                frequency_penalty: 1.2, // 【关键】频率惩罚，防止单词重复循环
+                presence_penalty: 1.0   // 【关键】存在惩罚，强制 AI 聊新话题
             })
         });
 
         const data = await response.json();
-        let fullText = data.choices[0].message.content;
+        let fullText = data.choices[0].message.content.trim();
 
-        // 【二次洗涤】：防止 AI 带入无意义的 "user:" 等前缀
-        fullText = fullText.replace(/user:/gi, '').replace(/assistant:/gi, '').trim();
+        // --- 物理去重逻辑：如果 AI 还是抽风输出了重复的短语，前端强行截断 ---
+        const phrases = fullText.split(' ');
+        let cleanedPhrases = [];
+        for(let i=0; i<phrases.length; i++) {
+            // 如果连续三个词跟前面的一模一样，说明进入死循环，直接停止
+            if (i > 10 && phrases[i] === phrases[i-1] && phrases[i] === phrases[i-2]) {
+                cleanedPhrases.push("...(Loop detected and stopped)");
+                break;
+            }
+            cleanedPhrases.push(phrases[i]);
+        }
+        fullText = cleanedPhrases.join(' ');
 
         // 渲染结果
         storyContent.innerHTML = fullText
@@ -792,7 +801,7 @@ async function generateGroupStory() {
 
     } catch (error) {
         console.error(error);
-        storyContent.innerText = "⚠️ 生成失败，请重试。";
+        storyContent.innerText = "⚠️ 生成失败，可能是模型由于逻辑冲突强制中断了。请再试一次。";
     }
 }
 
