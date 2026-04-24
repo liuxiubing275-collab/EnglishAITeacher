@@ -730,43 +730,37 @@ async function generateRevisionStory() {
     } catch(e) { box.innerText = "生成失败"; }
 }
 
-// ================= [修正：本组 10 词 AI 故事生成] =================
+// ================= [终极修正：强力约束版 10词故事生成] =================
 async function generateGroupStory() {
-    // 1. 获取 API Key
     const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) return alert("请先在‘互动聊天’板块设置并保存 API Key！");
+    if (!apiKey) return alert("请先设置 API Key");
 
-    // 2. 获取当前选中组的 10 个单词
     const bounds = getGroupBounds();
     let currentWords = [];
-    
-    // 如果是生词本模式，抓取生词本前10个
     let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
     
     for (let i = bounds.start; i <= bounds.end; i++) {
         if (source[i]) currentWords.push(source[i].en);
     }
 
-    if (currentWords.length === 0) return alert("当前组内没有单词，无法生成故事。");
+    if (currentWords.length === 0) return alert("当前组内没有单词");
 
-    // 3. UI 状态切换
     const storyArea = document.getElementById('groupStoryArea');
     const storyContent = document.getElementById('groupStoryContent');
-    
-    if (!storyArea || !storyContent) return alert("找不到显示区域 (groupStoryArea)");
-
     storyArea.style.display = 'block';
-    storyContent.innerHTML = `<p style="color:#8e44ad;">⏳ AI 老师正在针对这 ${currentWords.length} 个单词构思情境...</p>`;
+    storyContent.innerHTML = `<p style="color:#8e44ad;">⏳ AI 老师正在为你创作纯净版故事...</p>`;
     storyArea.scrollIntoView({ behavior: 'smooth' });
 
-    // 4. 构建 Prompt
-    const prompt = `你是一位英语老师。请使用以下单词编写一段连贯、地道的英语短文（约 100 词）：[${currentWords.join(", ")}]。
-    要求：
-    1. 单词在文中必须 **加粗**。
-    2. 必须附带中文翻译，中间用 --- 分隔。
-    3. 严禁输出除了故事和翻译以外的任何废话。`;
+    // 【核心改进】：强力指令，强制分离语言逻辑
+    const prompt = `Task: Write a short, coherent story in ENGLISH using these words: [${currentWords.join(", ")}].
+    
+    Requirements:
+    1. Write the story in pure, natural ENGLISH first (about 100 words).
+    2. BOLD each target word using **word** format.
+    3. After the story, add a separator "---".
+    4. Then provide the Chinese translation.
+    5. STRICTLY FORBIDDEN: Do not mix Chinese into the English part. Do not output words like "user" or "AI".`;
 
-    // 5. 调用 API
     try {
         const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
             method: 'POST',
@@ -776,22 +770,29 @@ async function generateGroupStory() {
             },
             body: JSON.stringify({
                 model: 'Qwen/Qwen2.5-7B-Instruct',
-                messages: [{ role: "user", content: prompt }],
-                temperature: 0.7
+                messages: [
+                    { role: "system", content: "You are a professional English novelist. You only output a high-quality story and its translation. No chatter." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.7, // 保持一定的创造力
+                max_tokens: 1000
             })
         });
 
         const data = await response.json();
-        const fullText = data.choices[0].message.content;
+        let fullText = data.choices[0].message.content;
 
-        // 6. 渲染结果（处理加粗和换行）
+        // 【二次洗涤】：防止 AI 带入无意义的 "user:" 等前缀
+        fullText = fullText.replace(/user:/gi, '').replace(/assistant:/gi, '').trim();
+
+        // 渲染结果
         storyContent.innerHTML = fullText
             .replace(/\n/g, '<br>')
-            .replace(/\*\*(.*?)\*\*/g, '<b style="color:#e67e22;">$1</b>');
+            .replace(/\*\*(.*?)\*\*/g, '<b style="color:#e67e22; background:#fff5eb; padding:0 2px;">$1</b>');
 
     } catch (error) {
         console.error(error);
-        storyContent.innerText = "⚠️ 生成失败，请检查网络或 API Key。";
+        storyContent.innerText = "⚠️ 生成失败，请重试。";
     }
 }
 
