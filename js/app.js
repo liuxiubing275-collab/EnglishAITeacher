@@ -1,16 +1,21 @@
+/**
+ * AI 英语私教 - 终极整合版
+ * 核心逻辑：云端同步 + 1247 遗忘曲线 + 生词本自愈系统 + 防死循环 AI 创作
+ */
+
 // ================= [0] 配置区 =================
-const SB_URL = 'https://bhilewmilbhxowxwwyfq.supabase.co'; // 已修正 URL
+const SB_URL = 'https://bhilewmilbhxowxwwyfq.supabase.co'; 
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoaWxld21pbGJoeG93eHd3eWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTYyNTUsImV4cCI6MjA5MjUzMjI1NX0._Kj-4i2KTU7LO07AwNkKAta-0qluh4BygU_OMwAKc6o'; 
 
 let supabaseClient = null;
 try {
     if (window.supabase) {
         supabaseClient = window.supabase.createClient(SB_URL, SB_KEY);
-        console.log("✅ Supabase 客户端已就绪");
+        console.log("✅ Supabase 客户端连接正常");
     }
-} catch (e) { console.error("Supabase 初始化失败:", e); }
+} catch (e) { console.warn("Supabase 暂不可用，转为本地模式"); }
 
-// ================= [1] 全局变量 =================
+// ================= [1] 全局状态 =================
 let wordList = [];
 let currentWordIndex = 0;
 let articleList = [];
@@ -20,24 +25,24 @@ let currentSentenceIdx = 0;
 let sentenceReplayTimer = null;
 let currentChatMode = 'eng';
 let chatHistory = [];
+let isWrongBookMode = false;
+
+// 翻译/挑战相关变量
 let translationTasks = [];
 let copySentenceQueue = [];
 let currentCopyCount = 0;
 let artChallengeData = [];
-let isWrongBookMode = false;
 
-// ================= [2] 初始化逻辑 =================
+// ================= [2] 初始化 =================
 window.onload = function() {
-    console.log("🚀 程序开始加载...");
+    console.log("🚀 AI 英语私教 启动中...");
     
     if (supabaseClient) {
         supabaseClient.auth.onAuthStateChange((event, session) => {
-            const authSection = document.getElementById('authSection');
-            const userSection = document.getElementById('userSection');
             if (session) {
-                if(authSection) authSection.style.display = 'none';
-                if(userSection) userSection.style.display = 'block';
-                document.getElementById('userEmailDisplay').innerText = "已登录: " + session.user.email;
+                document.getElementById('authSection').style.display = 'none';
+                document.getElementById('userSection').style.display = 'block';
+                document.getElementById('userEmailDisplay').innerText = "Hi, " + session.user.email;
                 pullFromCloud(); 
             }
         });
@@ -47,43 +52,37 @@ window.onload = function() {
 
     const savedKey = localStorage.getItem('silicon_api_key');
     if (savedKey) {
-        const keyInput = document.getElementById('siliconApiKey');
-        if(keyInput) keyInput.value = savedKey;
-        const settings = document.getElementById('settingsCard');
-        if(settings) settings.style.display = 'none';
+        document.getElementById('siliconApiKey').value = savedKey;
+        document.getElementById('settingsCard').style.display = 'none';
     }
 
     switchTab('words');
     updateDailyDashboard();
     
-    // 定时刷新仪表盘
-    setInterval(updateDailyDashboard, 10000);
-    setInterval(() => {
-        const select = document.getElementById('groupSelect');
-        const span = document.getElementById('currentActiveGNum');
-        if(select && span) span.innerText = (select.value === 'all' ? '全' : parseInt(select.value) + 1);
-    }, 500);
+    // 定时轮询
+    setInterval(updateDailyDashboard, 30000); // 30秒刷一次任务
 };
 
-// ================= [3] 数据加载 (3行格式) =================
+// ================= [3] 数据加载 (支持 3 行格式) =================
 async function loadAllData() {
-    let currentBookPath = localStorage.getItem('selected_book_path') || 'default';
-    let wordPath = currentBookPath === 'default' ? 'NewWords.txt' : `books/${currentBookPath}/NewWords.txt`;
-    let textPath = currentBookPath === 'default' ? 'Texts.txt' : `books/${currentBookPath}/Texts.txt`;
+    let book = localStorage.getItem('selected_book_path') || 'default';
+    let wPath = book === 'default' ? 'NewWords.txt' : `books/${book}/NewWords.txt`;
+    let tPath = book === 'default' ? 'Texts.txt' : `books/${book}/Texts.txt`;
 
     try {
-        const wRes = await fetch(wordPath + '?t=' + Date.now());
+        const wRes = await fetch(wPath + '?t=' + Date.now());
         if (wRes.ok) {
             const wText = await wRes.text();
             const rawLines = wText.split(/\r?\n/).map(w => w.trim()).filter(w => w.length > 0);
             wordList = [];
+            // 核心：步长为 3 读取 (单词|释义, 例句, 宫殿)
             for (let i = 0; i < rawLines.length; i += 3) {
                 const parts = rawLines[i].split(/\||:|：/);
                 wordList.push({
                     en: parts[0].trim(),
                     zh: parts.length > 1 ? parts[1].trim() : "暂无释义",
-                    ex: rawLines[i + 1] || "暂无例句。",
-                    hook: rawLines[i + 2] || "暂无记忆钩子。"
+                    ex: rawLines[i + 1] || "No example.",
+                    hook: rawLines[i + 2] || "未配置挂钩。"
                 });
             }
             if (wordList.length > 0) {
@@ -91,7 +90,7 @@ async function loadAllData() {
                 updateWordDisplay();
             }
         }
-        const aRes = await fetch(textPath + '?t=' + Date.now());
+        const aRes = await fetch(tPath + '?t=' + Date.now());
         if (aRes.ok) {
             const aText = await aRes.text();
             const allLines = aText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
@@ -101,15 +100,15 @@ async function loadAllData() {
             }
             initArticleSelect();
         }
-    } catch (e) { console.error("加载失败", e); }
+    } catch (e) { console.error("Data Load Error", e); }
 }
 
-// ================= [4] 单词核心逻辑 =================
+// ================= [4] 单词挑战与生词系统 =================
+
 function initGroupSelect() {
     const select = document.getElementById('groupSelect');
     if (!select) return;
-    
-    const currentVal = select.value; // 记住当前选择，防止刷新时跳走
+    const currentVal = select.value;
     select.innerHTML = '';
     
     // 1. 添加普通组
@@ -117,408 +116,287 @@ function initGroupSelect() {
     for (let i = 0; i < groupCount; i++) {
         select.add(new Option(`📦 第 ${i + 1} 组`, i));
     }
-    
-    // 2. 添加全部练习
     select.add(new Option(`📚 全部练习`, 'all'));
 
-    // 3. 【关键修复】：添加生词本选项
-    let wrongWordsBook = JSON.parse(localStorage.getItem('eng_wrong_words') || '[]');
-    if (wrongWordsBook.length > 0) {
-        let opt = new Option(`❤️ 生词本 (${wrongWordsBook.length} 词)`, 'wrong_book');
+    // 2. 添加生词本选项
+    let wrongWords = JSON.parse(localStorage.getItem('eng_wrong_words') || '[]');
+    if (wrongWords.length > 0) {
+        let opt = new Option(`❤️ 生词本 (${wrongWords.length} 词)`, 'wrong_book');
         opt.style.color = "red";
         select.add(opt);
     }
     
-    // 4. 更新看板上的生词统计数字
+    // 3. 更新看板统计
     const countSpan = document.getElementById('wrongWordsCount');
+    if (countSpan) countSpan.innerText = wrongWords.length;
     const staticArea = document.getElementById('wrongWordsStatic');
-    if (countSpan) countSpan.innerText = wrongWordsBook.length;
-    if (staticArea) staticArea.style.display = wrongWordsBook.length > 0 ? 'block' : 'none';
+    if (staticArea) staticArea.style.display = wrongWords.length > 0 ? 'block' : 'none';
 
     select.value = currentVal || 0;
 }
 
-function getGroupBounds() {
-    const val = document.getElementById('groupSelect').value;
-    if (val === 'all') return { start: 0, end: wordList.length - 1, total: wordList.length };
-    const start = parseInt(val) * 10;
-    const end = Math.min(start + 9, wordList.length - 1);
-    return { start, end, total: end - start + 1 };
-}
-
 function updateWordDisplay() {
-    // 1. 确定数据源：是练习普通课本，还是在练习生词本
     let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
     
-    // 2. 空列表处理：如果生词本练完了
     if (source.length === 0) {
         if (isWrongBookMode) {
-            alert("🎉 太棒了！生词本中的单词已全部掌握！");
+            alert("🎉 生词已全部消灭！");
             isWrongBookMode = false;
-            document.getElementById('groupSelect').value = 0; // 切回第一组
-            loadAllData(); // 重新加载数据
+            document.getElementById('groupSelect').value = 0;
+            changeGroup();
         }
         return;
     }
 
-    // 3. 获取当前单词对象
-    // 确保索引不越界（尤其是在生词本数量变动时）
     if (currentWordIndex >= source.length) currentWordIndex = 0;
     const wordObj = source[currentWordIndex];
+    const bounds = isWrongBookMode ? {start:0, total: source.length} : getGroupBounds();
 
-    // 4. 更新单词文本和计数器
-    const wordEl = document.getElementById('targetWord');
-    const counterEl = document.getElementById('wordCounter');
+    document.getElementById('targetWord').innerText = wordObj.en;
+    document.getElementById('wordCounter').innerText = isWrongBookMode ? 
+        `${currentWordIndex+1} / ${source.length}` : 
+        `${currentWordIndex - bounds.start + 1} / ${bounds.total}`;
     
-    if (wordEl) wordEl.innerText = wordObj.en;
-    if (counterEl) {
-        // 如果是生词本模式，显示总数；如果是普通模式，显示组内进度
-        const total = isWrongBookMode ? source.length : getGroupBounds().total;
-        const current = isWrongBookMode ? (currentWordIndex + 1) : (currentWordIndex - getGroupBounds().start + 1);
-        counterEl.innerText = `${current} / ${total}`;
-    }
+    const zhEl = document.getElementById('chineseMeaning');
+    zhEl.innerText = wordObj.zh; zhEl.style.display = 'none';
 
-    // 5. 更新中文释义（默认隐藏）
-    const chineseEl = document.getElementById('chineseMeaning');
-    if (chineseEl) {
-        chineseEl.innerText = wordObj.zh;
-        chineseEl.style.display = 'none';
-    }
-
-    // 6. 更新例句显示（处理换行逻辑）
     const exBox = document.getElementById('exampleSentence');
-    if (exBox) {
-        const exParts = wordObj.ex.split("中文：");
-        if (exParts.length > 1) {
-            exBox.innerHTML = `
-                <div style="font-weight:500; color:#2c3e50;">${exParts[0].trim()}</div>
-                <div style="color:#8e8e93; font-size:0.9em; margin-top:8px; border-top:1px solid #f0f0f0; padding-top:8px;">
-                    <span style="background:#eee; padding:2px 5px; border-radius:4px; font-size:0.8em; margin-right:5px;">译</span>
-                    ${exParts[1].trim()}
-                </div>`;
-        } else {
-            exBox.innerHTML = `<div style="color:#2c3e50;">${wordObj.ex}</div>`;
-        }
-        exBox.style.display = 'none'; // 默认隐藏
-    }
-
-    // 7. 状态清理
-    const resultEl = document.getElementById('wordResult');
-    const dictResultEl = document.getElementById('dictationResult');
-    const dictInput = document.getElementById('dictationInput');
+    const exParts = wordObj.ex.split("中文：");
+    exBox.innerHTML = exParts.length > 1 ? 
+        `<div style="font-weight:600;">${exParts[0]}</div><div style="color:#8e8e93; font-size:0.9em; border-top:1px solid #eee; margin-top:8px; padding-top:8px;">译: ${exParts[1]}</div>` : 
+        wordObj.ex;
+    exBox.style.display = 'none';
     
-    if (resultEl) resultEl.innerText = "";
-    if (dictResultEl) dictResultEl.innerText = "";
-    if (dictInput) dictInput.value = "";
-
-    // 8. 模式判定：练习模式下强制单词清晰，除非正在测验
-    if (wordEl) {
-        const isTesting = document.getElementById('dictationGroupMode').style.display === 'block';
-        wordEl.style.filter = isTesting ? 'blur(8px)' : 'none';
-    }
+    document.getElementById('wordResult').innerText = "";
+    document.getElementById('dictationResult').innerText = "";
+    document.getElementById('dictationInput').value = "";
+    
+    // 自动清晰化处理
+    const isTesting = document.getElementById('dictationGroupMode').style.display === 'block';
+    document.getElementById('targetWord').style.filter = isTesting ? 'blur(8px)' : 'none';
 }
-
-// ================= [自由练习模式的拼写检查逻辑] =================
 
 function checkDictation() {
-    // 1. 获取当前数据源（普通课本或生词本）
     let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
-    
     if (source.length === 0) return;
 
-    // 2. 获取用户输入和标准答案
-    const userInput = document.getElementById('dictationInput').value.trim().toLowerCase();
-    const targetWordObj = source[currentWordIndex];
-    const correctAnswer = targetWordObj.en.toLowerCase().trim();
-    
+    const input = document.getElementById('dictationInput').value.trim().toLowerCase();
+    const targetObj = source[currentWordIndex];
+    const target = targetObj.en.toLowerCase();
     const resultEl = document.getElementById('dictationResult');
-    const wordEl = document.getElementById('targetWord');
+    
+    let wrongWords = JSON.parse(localStorage.getItem('eng_wrong_words') || '[]');
 
-    // 3. 读取生词本用于更新
-    let wrongWordsBook = JSON.parse(localStorage.getItem('eng_wrong_words') || '[]');
-
-    if (userInput === "") {
-        resultEl.style.color = "#FF9500";
-        resultEl.innerText = "⚠️ 请先输入单词！";
-        return;
-    }
-
-    if (userInput === correctAnswer) {
-        // --- 情况 A：拼写正确 ---
-        resultEl.style.color = "#27ae60";
-        resultEl.innerHTML = "✅ 完全正确！";
-        
-        // 视觉反馈：让模糊的单词变清晰
-        if (wordEl) wordEl.style.filter = "none";
-
-        // 【科学逻辑】：既然写对了，就从生词本中移除该词（如果原本在里面）
-        wrongWordsBook = wrongWordsBook.filter(item => item.en.toLowerCase() !== correctAnswer);
-        localStorage.setItem('eng_wrong_words', JSON.stringify(wrongWordsBook));
-        
-        // 更新下拉菜单的数量显示
+    if (input === target) {
+        resultEl.style.color = "green"; resultEl.innerText = "✅ 正确！";
+        document.getElementById('targetWord').style.filter = "none";
+        // 写对移除
+        wrongWords = wrongWords.filter(item => item.en.toLowerCase() !== target);
+        localStorage.setItem('eng_wrong_words', JSON.stringify(wrongWords));
         initGroupSelect();
-        // 同步到云端
-        if (typeof pushToCloud === 'function') pushToCloud();
-
-        // 1.5秒后自动跳转到下一个词
-        setTimeout(() => {
-            nextWord();
-        }, 1500);
-
+        setTimeout(nextWord, 1500);
     } else {
-        // --- 情况 B：拼写错误 ---
-        resultEl.style.color = "#e74c3c";
-        resultEl.innerHTML = "❌ 拼写有误，再试一次。";
-        
-        // 【科学逻辑】：拼错了，自动加入生词本（避免重复添加）
-        const alreadyIn = wrongWordsBook.some(item => item.en.toLowerCase() === correctAnswer);
-        if (!alreadyIn) {
-            wrongWordsBook.push(targetWordObj);
-            localStorage.setItem('eng_wrong_words', JSON.stringify(wrongWordsBook));
-            
-            // 更新下拉菜单的数量显示
+        resultEl.style.color = "red"; resultEl.innerText = "❌ 拼写有误";
+        // 写错加入
+        if (!wrongWords.some(item => item.en.toLowerCase() === target)) {
+            wrongWords.push(targetObj);
+            localStorage.setItem('eng_wrong_words', JSON.stringify(wrongWords));
             initGroupSelect();
-            // 同步到云端
-            if (typeof pushToCloud === 'function') pushToCloud();
         }
-        
-        // 选中输入框文字，方便用户修改
         document.getElementById('dictationInput').select();
     }
-}
-
-function nextWord() {
-    const bounds = getGroupBounds();
-    currentWordIndex++;
-    if (currentWordIndex > bounds.end) currentWordIndex = bounds.start;
-    updateWordDisplay();
-}
-
-function restartWords() { currentWordIndex = getGroupBounds().start; updateWordDisplay(); }
-function toggleMeaning() { const el = document.getElementById('chineseMeaning'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
-function toggleBlur() { const el = document.getElementById('targetWord'); el.style.filter = el.style.filter === 'blur(8px)' ? 'none' : 'blur(8px)'; }
-
-// 修改 1：读单词
-function readTargetWord() {
-    window.speechSynthesis.cancel();
-    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
-    const wordEl = document.getElementById('targetWord');
-    if (wordEl) wordEl.style.filter = 'none';
-    
-    const u = new SpeechSynthesisUtterance(source[currentWordIndex].en);
-    u.lang = 'en-US';
-    window.speechSynthesis.speak(u);
-}
-
-function showAndPlayExample() {
-    document.getElementById('exampleSentence').style.display = 'block';
-    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
-    let speechText = source[currentWordIndex].ex.split("中文：")[0].replace(/[^\x00-\xff]/g, '').trim();
-    
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(speechText);
-    u.lang = 'en-US';
-    window.speechSynthesis.speak(u);
-}
-
-// ================= [测验模块：含生词本逻辑] =================
-
-// 1. 开始【本组连续测验】
-function startGroupTest() {
-    // 确定测验的数据源（是普通课本还是生词本）
-    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
-    let bounds = getGroupBounds();
-    
-    // 如果是生词本模式，范围就是整个生词本
-    groupTestBounds = isWrongBookMode ? { start: 0, end: source.length - 1, total: source.length } : bounds;
-    
-    if (source.length === 0) return alert("没有单词可以测试");
-
-    groupTestAnswers = []; 
-    groupTestCurrentIndex = 0;
-
-    // UI 切换
-    document.getElementById('dictationSingleMode').style.display = 'none';
-    document.getElementById('dictationGroupMode').style.display = 'block';
-    document.getElementById('dictationResultMode').style.display = 'none';
-    
-    // 强制模糊单词
-    document.getElementById('targetWord').style.filter = 'blur(8px)';
-    
-    playTestWord();
-}
-
-// 2. 播放测验单词
-function playTestWord() {
-    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
-    const wordObj = source[groupTestBounds.start + groupTestCurrentIndex];
-    
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(wordObj.en);
-    u.lang = 'en-US';
-    window.speechSynthesis.speak(u);
-    
-    document.getElementById('groupTestProgress').innerText = `测验中: ${groupTestCurrentIndex + 1} / ${groupTestBounds.total}`;
-    setTimeout(() => { document.getElementById('groupTestInput').focus(); }, 200);
-}
-
-// 3. 提交当前单词并进入下一个 (你缺失的函数)
-function submitTestWord() {
-    const inputEl = document.getElementById('groupTestInput');
-    groupTestAnswers.push(inputEl.value.trim());
-    inputEl.value = "";
-    
-    groupTestCurrentIndex++;
-    
-    if (groupTestCurrentIndex < groupTestBounds.total) {
-        playTestWord();
-    } else {
-        showGroupTestResult();
-    }
-}
-
-// 4. 显示结果并管理生词本 (你缺失的函数)
-function showGroupTestResult() {
-    document.getElementById('dictationGroupMode').style.display = 'none';
-    document.getElementById('dictationResultMode').style.display = 'block';
-    
-    let correctCount = 0;
-    let html = "";
-    
-    // 获取当前测验的数据源
-    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
-    // 获取生词本用于更新
-    let wrongWordsBook = JSON.parse(localStorage.getItem('eng_wrong_words') || '[]');
-
-    for (let i = 0; i < groupTestBounds.total; i++) {
-        const target = source[groupTestBounds.start + i];
-        const userAnswer = groupTestAnswers[i].toLowerCase().trim();
-        const correctAnswer = target.en.toLowerCase().trim();
-        
-        const isOk = groupTestAnswers[i].toLowerCase().trim() === target.en.toLowerCase().trim();
-        
-        if (isOk) {
-            correctCount++;
-            // 【科学逻辑】：如果写对了，尝试从生词本中移除
-            wrongWordsBook = wrongWordsBook.filter(item => item.en.toLowerCase() !== target.en.toLowerCase());
-        } else {
-            // 写错了，加入生词本
-            if (!wrongWordsBook.some(item => item.en.toLowerCase() === target.en.toLowerCase())) {
-                wrongWordsBook.push(target);
-            }
-        }
-        
-        html += `<li class="${isOk ? 'correct-item' : 'incorrect-item'}" style="margin-bottom:10px; padding:10px; border-radius:8px; list-style:none; background:#f8f9fa;">
-                    <b>${target.en}</b>: ${isOk ? '✅' : '❌ 你写了: ' + (groupTestAnswers[i] || "(留空)")}
-                    <br><small style="color:#666;">${target.zh}</small>
-                 </li>`;
-    }
-
-    // 保存生词本到本地并同步云端
-    localStorage.setItem('eng_wrong_words', JSON.stringify(wrongWordsBook));
-    if (typeof pushToCloud === 'function') pushToCloud();
-
-    document.getElementById('groupTestScore').innerHTML = `正确率: ${Math.round(correctCount / groupTestBounds.total * 100)}%`;
-    document.getElementById('groupTestResultList').innerHTML = html;
-    
-    // 重新初始化下拉框，以刷新生词本的数量显示
-    initGroupSelect();
     pushToCloud();
 }
 
-// ================= [从测验模式返回到练习模式] =================
+// ================= [5] AI 故事 (防死循环版) =================
 
-function quitGroupTest() {
-    // 1. 隐藏测验运行界面和结果展示界面
-    const groupMode = document.getElementById('dictationGroupMode');
-    const resultMode = document.getElementById('dictationResultMode');
-    const singleMode = document.getElementById('dictationSingleMode');
-
-    if (groupMode) groupMode.style.display = 'none';
-    if (resultMode) resultMode.style.display = 'none';
-
-    // 2. 重新显示自由练习（单词练习）界面
-    if (singleMode) singleMode.style.display = 'block';
-
-    // 3. 核心修复：强制取消单词模糊效果，让单词恢复清晰
-    const wordEl = document.getElementById('targetWord');
-    if (wordEl) {
-        wordEl.style.filter = 'none';
-    }
-
-    // 4. 刷新当前单词显示，确保界面数据同步
-    updateWordDisplay();
-
-    // 5. 自动滚动回到顶部，方便继续练习
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// ================= [5] 云端同步与看板 =================
-function getLocalDateString(date) {
-    let y = date.getFullYear(), m = (date.getMonth()+1).toString().padStart(2,'0'), d = date.getDate().toString().padStart(2,'0');
-    return `${y}-${m}-${d}`;
-}
-
-async function pushToCloud() {
-    if (!supabaseClient) return;
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) return;
-    const progressData = {
-        eng_study_history: localStorage.getItem('eng_study_history'),
-        selected_book_path: localStorage.getItem('selected_book_path'),
-        silicon_api_key: localStorage.getItem('silicon_api_key')
-    };
-    await supabaseClient.from('user_progress').upsert({ id: user.id, data: progressData, updated_at: new Date() });
-}
-
-async function pullFromCloud() {
-    if (!supabaseClient) return;
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) return;
-    const { data } = await supabaseClient.from('user_progress').select('data').single();
-    if (data && data.data) {
-        let changed = false;
-        for (let key in data.data) {
-            if (data.data[key] && localStorage.getItem(key) !== data.data[key]) {
-                localStorage.setItem(key, data.data[key]);
-                changed = true;
-            }
-        }
-        if (changed) updateDailyDashboard();
-    }
-}
-
-function markCurrentGroupFinished() {
-    const val = document.getElementById('groupSelect').value;
-    if (val === 'all') return alert("请先选组");
-    const gNum = parseInt(val) + 1;
-    const today = new Date(); today.setHours(0,0,0,0);
-    let history = JSON.parse(localStorage.getItem('eng_study_history') || '{}');
-    for (let i = 1; i <= gNum; i++) {
-        let target = new Date(today);
-        if (i === gNum - 1) target.setDate(today.getDate() - 1);
-        else if (i === gNum - 3) target.setDate(today.getDate() - 3);
-        else if (i === gNum - 6) target.setDate(today.getDate() - 6);
-        else if (i < gNum) target.setDate(today.getDate() - 20);
-        history[i] = getLocalDateString(target);
-    }
-    localStorage.setItem('eng_study_history', JSON.stringify(history));
-    updateDailyDashboard(); pushToCloud();
-    alert("🎉 记录成功，云端已同步！");
-}
-
-function changeGroup() {
-    const val = document.getElementById('groupSelect').value;
+async function generateGroupStory() {
+    const apiKey = localStorage.getItem('silicon_api_key');
+    if (!apiKey) return alert("请先存 API Key");
     
-    if (val === 'wrong_book') {
-        isWrongBookMode = true;
-        currentWordIndex = 0;
-    } else {
-        isWrongBookMode = false;
-        currentWordIndex = getGroupBounds().start;
-    }
-    updateWordDisplay();
+    const bounds = getGroupBounds();
+    let words = [];
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    for(let i=bounds.start; i<=bounds.end; i++) if(source[i]) words.push(source[i].en);
+
+    const box = document.getElementById('groupStoryContent');
+    document.getElementById('groupStoryArea').style.display="block";
+    box.innerHTML = "⏳ AI 正在尝试构思故事...";
+
+    try {
+        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+            method: 'POST',
+            headers: {'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                model:'Qwen/Qwen2.5-7B-Instruct', 
+                messages: [{role:"user", content: `Write a short story with [${words.join(", ")}]. Bold words. End with '---' and translation.`}],
+                temperature: 0.3, frequency_penalty: 1.2, max_tokens: 600
+            })
+        });
+        const data = await res.json();
+        let txt = data.choices[0].message.content;
+        box.innerHTML = txt.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    } catch(e) { box.innerText = "生成失败，请重试"; }
 }
+
+// ================= [6] 翻译挑战与 5次抄写 =================
+
+async function startTranslationChallenge() {
+    const apiKey = localStorage.getItem('silicon_api_key');
+    const bounds = getGroupBounds();
+    let words = []; for(let i=bounds.start; i<=bounds.end; i++) if(wordList[i]) words.push(wordList[i].en);
+    
+    document.getElementById('transSetup').style.display = 'none';
+    document.getElementById('transWorking').style.display = 'block';
+    const qBox = document.getElementById('transQuestions');
+    qBox.innerHTML = "⏳ AI 出题中...";
+
+    try {
+        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+            method: 'POST',
+            headers: {'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                model:'Qwen/Qwen2.5-7B-Instruct', 
+                messages: [{role:"user", content: `根据单词[${words.join(",")}]出3道纯中文翻译题，禁止英文和括号。每行一句。`}]
+            })
+        });
+        const data = await res.json();
+        const lines = data.choices[0].message.content.trim().split('\n').filter(l => l.trim().length > 3).slice(0,3);
+        translationTasks = lines.map(l => ({ cn: l.replace(/[\[\]]/g, '').replace(/^\d+[\.、\s]+/, '').trim(), userEn: '' }));
+        qBox.innerHTML = translationTasks.map((t, i) => `
+            <div style="margin-bottom:12px;">Q${i+1}: ${t.cn}<input type="text" class="trans-user-input" data-idx="${i}" style="margin-top:5px;"></div>
+        `).join('');
+    } catch(e) { alert("出题失败"); }
+}
+
+async function gradeTranslations() {
+    const apiKey = localStorage.getItem('silicon_api_key');
+    const inputs = document.querySelectorAll('.trans-user-input');
+    inputs.forEach(input => translationTasks[input.dataset.idx].userEn = input.value.trim());
+    document.getElementById('btnSubmitTrans').innerText = "批改中...";
+
+    try {
+        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+            method: 'POST',
+            headers: {'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                model:'Qwen/Qwen2.5-7B-Instruct', 
+                messages: [{role:"user", content: `Translate to English: ${translationTasks.map(t=>t.cn).join(' | ')}. Output 3 lines English only, split by ###.`}],
+                temperature: 0.1, frequency_penalty: 1.5
+            })
+        });
+        const data = await res.json();
+        const raw = data.choices[0].message.content;
+        const corrects = raw.split('###').map(s => {
+            // 物理洗词洗掉重复词
+            return s.trim().replace(/[\u4e00-\u9fa5]/g, '').split(' ').filter((v,i,a) => v!==a[i-1]).join(' ');
+        });
+        
+        copySentenceQueue = [];
+        let html = "<h3>精准对比：</h3>";
+        translationTasks.forEach((t, i) => {
+            const correct = corrects[i] || "Error";
+            copySentenceQueue.push(correct);
+            html += `<div style="margin-bottom:10px; border:1px solid #eee; padding:10px; border-radius:10px; background:white;">
+                <p style="font-size:12px; color:#666;">${t.cn}</p>
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1; color:red;"><small>你写:</small><br>${t.userEn}</div>
+                    <div style="flex:1; color:green;"><b><small>地道:</small><br>${correct}</b></div>
+                </div>
+            </div>`;
+        });
+        document.getElementById('transComparisonArea').innerHTML = html;
+        document.getElementById('transWorking').style.display = 'none';
+        document.getElementById('transResult').style.display = 'block';
+        startCopyExercise();
+    } catch(e) { alert("批改失败"); }
+}
+
+function startCopyExercise() {
+    currentCopyCount = 0;
+    document.getElementById('copyExerciseArea').style.display = 'block';
+    updateCopyDisplay();
+    document.getElementById('copyExerciseArea').scrollIntoView({behavior:'smooth'});
+}
+
+function updateCopyDisplay() {
+    document.getElementById('copyTargetBox').innerText = copySentenceQueue[0];
+    document.getElementById('copyProgressText').innerText = `已完成: ${currentCopyCount} / 5 遍`;
+    document.getElementById('copyInput').value = ""; document.getElementById('copyInput').focus();
+}
+
+function handleCopyInput() {
+    const input = document.getElementById('copyInput').value.trim().toLowerCase().replace(/[.,!?'"]/g, '');
+    const target = copySentenceQueue[0].trim().toLowerCase().replace(/[.,!?'"]/g, '');
+    if (input === target) {
+        currentCopyCount++;
+        if (currentCopyCount >= 5) {
+            copySentenceQueue.shift();
+            if (copySentenceQueue.length > 0) { currentCopyCount = 0; updateCopyDisplay(); }
+            else { alert("🎉 完美刻入脑海！"); resetTranslationChallenge(); }
+        } else updateCopyDisplay();
+    } else alert("拼写不完全一致，请仔细检查");
+}
+
+// ================= [7] 文章与回译 =================
+
+async function startArticleChallenge() {
+    const endIdx = parseInt(document.getElementById('articleEndSelect').value);
+    const pool = articleList.slice(0, endIdx + 1);
+    if (pool.length < 3) return alert("段落不足 3 个");
+    
+    let selected = [];
+    while (selected.length < 3) {
+        let r = Math.floor(Math.random() * pool.length);
+        if (!selected.includes(r)) selected.push(r);
+    }
+    artChallengeData = selected.map(i => pool[i]);
+
+    document.getElementById('artChallengeSetup').style.display = 'none';
+    document.getElementById('artChallengeWorking').style.display = 'block';
+    const qBox = document.getElementById('artChallengeQuestions');
+    qBox.innerHTML = artChallengeData.map((t, i) => `
+        <div style="margin-bottom:15px;">
+            <p style="background:#FFFBE6; padding:8px; border-radius:8px;">${t.zh}</p>
+            <textarea class="art-user-input" rows="2" placeholder="默写原句英文..."></textarea>
+        </div>
+    `).join('');
+}
+
+async function gradeArticleChallenge() {
+    const apiKey = localStorage.getItem('silicon_api_key');
+    const inputs = document.querySelectorAll('.art-user-input');
+    const fbBox = document.getElementById('artChallengeComparison');
+    document.getElementById('artChallengeWorking').style.display = 'none';
+    document.getElementById('artChallengeResult').style.display = 'block';
+    fbBox.innerHTML = "AI 老师正在逐句对比阅卷...";
+    
+    let prompt = `Compare these English translations. Provide feedback for each sentence in tags <p1>, <p2>, <p3>. 
+    ${artChallengeData.map((t,i)=> `Q${i+1}: Original:[${t.en}], User:[${inputs[i].value}]`).join('\n')}`;
+
+    try {
+        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+            method: 'POST',
+            headers: {'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({model:'Qwen/Qwen2.5-7B-Instruct', messages: [{role:"user", content:prompt}]})
+        });
+        const data = await res.json();
+        const raw = data.choices[0].message.content;
+        let html = "";
+        artChallengeData.forEach((t, i) => {
+            const match = raw.match(new RegExp(`<p${i+1}>([\\s\\S]*?)<\\/p${i+1}>`));
+            html += `<div style="margin-bottom:10px; border:1px solid #ddd; padding:10px; border-radius:10px; background:white;">
+                <p style="font-size:12px;">${t.zh}</p>
+                <div style="color:green; font-weight:bold;">原: ${t.en}</div>
+                <div style="color:red;">你: ${inputs[i].value}</div>
+                <div style="margin-top:5px; padding:5px; background:#f9f9ff; font-size:13px;">💡 ${match?match[1]:"批改完成"}</div>
+            </div>`;
+        });
+        fbBox.innerHTML = html;
+    } catch(e) { fbBox.innerHTML = "批改失败"; }
+}
+
+// ================= [8] 看板与同步逻辑 =================
 
 function updateDailyDashboard() {
     const dashboard = document.getElementById('taskList');
@@ -527,12 +405,14 @@ function updateDailyDashboard() {
     document.getElementById('todayDate').innerText = getLocalDateString(today);
     let history = JSON.parse(localStorage.getItem('eng_study_history') || '{}');
     let tasks = [];
+    
     let maxG = 0; Object.keys(history).forEach(g => { if(parseInt(g)>maxG) maxG=parseInt(g); });
     tasks.push(`🆕 <b>新课：</b> 第 <a href="#" onclick="jumpToGroup(${maxG})" style="color:#f1c40f;">${maxG+1}</a> 组`);
+
     let review = [];
     for (let g in history) {
-        const parts = history[g].split('-');
-        const d = new Date(parts[0], parts[1]-1, parts[2]);
+        const dateParts = history[g].split('-');
+        const d = new Date(dateParts[0], dateParts[1]-1, dateParts[2]);
         const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
         if ([1, 3, 6].includes(diff)) review.push(`<a href="#" onclick="jumpToGroup(${g-1})" style="color:#f1c40f; margin-right:10px;">第 ${g} 组</a>`);
     }
@@ -540,416 +420,32 @@ function updateDailyDashboard() {
     dashboard.innerHTML = tasks.join('');
 }
 
-function jumpToGroup(idx) { 
-    const select = document.getElementById('groupSelect');
-    if(select) { select.value = idx; changeGroup(); }
-}
-
-// ================= 每日翻译挑战逻辑系统 =================
-// ======================================================
-
-let translationTasks = []; // 存储题目：{cn: "", userEn: "", correctEn: ""}
-let copySentenceQueue = []; // 需要抄写的句子队列
-let currentCopyCount = 0;  // 当前句子的抄写次数进度
-
-// 1. 开始挑战：AI 出题
-// 1. 开始挑战：AI 出题 (优化版 Prompt)
-// 1. 开始挑战：AI 出题 (修复中括号显示问题)
-async function startTranslationChallenge() {
-    const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) return alert("请先在设置中保存 API Key");
-
-    const bounds = getGroupBounds();
-    let words = [];
-    for (let i = bounds.start; i <= bounds.end; i++) {
-        if (wordList[i]) words.push(wordList[i].en);
+function markCurrentGroupFinished() {
+    const val = document.getElementById('groupSelect').value;
+    if (val === 'all') return;
+    const currentGNum = parseInt(val) + 1;
+    const today = new Date(); today.setHours(0,0,0,0);
+    let history = JSON.parse(localStorage.getItem('eng_study_history') || '{}');
+    for (let i = 1; i <= currentGNum; i++) {
+        let target = new Date(today);
+        if (i === currentGNum - 1) target.setDate(today.getDate() - 1);
+        else if (i === currentGNum - 3) target.setDate(today.getDate() - 3);
+        else if (i === currentGNum - 6) target.setDate(today.getDate() - 6);
+        else if (i < currentGNum) target.setDate(today.getDate() - 20);
+        history[i] = getLocalDateString(target);
     }
-
-    document.getElementById('transSetup').style.display = 'none';
-    document.getElementById('transWorking').style.display = 'block';
-    const qBox = document.getElementById('transQuestions');
-    qBox.innerHTML = "<p style='text-align:center; color:#8e44ad;'>⏳ AI 老师正在为你构思纯净题目...</p>";
-
-    const prompt = `你是一位专业的英语老师。请根据以下单词：[${words.join(", ")}]，编写 3 个简单的日常中文句子。
-    要求：
-    1. 纯中文，严禁出现英文。
-    2. 严格按以下格式输出（不要带括号，不要前言）：
-    1. 第一句中文
-    2. 第二句中文
-    3. 第三句中文`;
-
-    try {
-        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'Qwen/Qwen2.5-7B-Instruct',
-                messages: [
-                    { role: "system", content: "你是一个翻译题目生成器，只输出中文题目内容，严禁带中括号[]或英文。" },
-                    { role: "user", content: prompt }
-                ],
-                temperature: 0.7
-            })
-        });
-        const data = await response.json();
-        const content = data.choices[0].message.content;
-        
-        // 【关键修复：解析逻辑】
-        // 1. 先按行切分
-        // 2. 用 replace(/[\[\]]/g, '') 强制删掉内容中所有的 [ 和 ]
-        // 3. 用 replace(/^\d+\.\s*/, '') 删掉开头的 1. 2. 序号
-        const rawLines = content.split('\n').filter(l => l.trim().length > 2);
-        
-        translationTasks = rawLines.slice(0, 3).map(l => ({ 
-            cn: l.replace(/[\[\]]/g, '').replace(/^\d+[\.、\s]+/, '').trim(), 
-            userEn: '', 
-            correctEn: '' 
-        }));
-
-        qBox.innerHTML = translationTasks.map((t, i) => `
-            <div style="margin-bottom:15px; border-bottom:1px solid #f0f0f0; padding-bottom:10px;">
-                <p style="font-size:16px; color:#333;"><b>Q${i+1}:</b> ${t.cn}</p>
-                <input type="text" class="trans-user-input" data-idx="${i}" placeholder="尝试用学过的单词翻译..." style="border: 1px solid #007AFF;">
-            </div>
-        `).join('');
-
-    } catch (e) {
-        console.error(e);
-        alert("出题失败，请重试");
-        resetTranslationSection();
-    }
+    localStorage.setItem('eng_study_history', JSON.stringify(history));
+    updateDailyDashboard(); pushToCloud();
+    alert("🎉 记录成功并同步云端！");
 }
 
-async function gradeTranslations() {
-    const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) return alert("请先设置 API Key");
-
-    const inputs = document.querySelectorAll('.trans-user-input');
-    inputs.forEach(input => {
-        const idx = input.getAttribute('data-idx');
-        translationTasks[idx].userEn = input.value.trim();
-    });
-
-    const btn = document.getElementById('btnSubmitTrans');
-    btn.innerText = "⏳ 正在阅卷（防乱码模式）...";
-    btn.disabled = true;
-
-    // --- 策略 1：极简指令，完全抛弃 JSON，防止模型大脑过载 ---
-    const prompt = `Task: Translate these 3 sentences into simple English.
-1. ${translationTasks[0].cn}
-2. ${translationTasks[1].cn}
-3. ${translationTasks[2].cn}
-
-Instructions:
-- Output ONLY 3 lines.
-- One English sentence per line.
-- NO Chinese, NO symbols, NO repeated words.`;
-
-    try {
-        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'Qwen/Qwen2.5-7B-Instruct',
-                messages: [
-                    { role: "system", content: "You are a translation machine. You only output 3 lines of plain English text. No repetition. No chatter." },
-                    { role: "user", content: prompt }
-                ],
-                temperature: 0.1,
-                top_p: 0.1,
-                frequency_penalty: 1.5, // 极高惩罚，彻底消灭重复单词
-                max_tokens: 300         // 限制长度，防止 AI 没完没了地写
-            })
-        });
-        
-        const data = await response.json();
-        let aiRaw = data.choices[0].message.content.trim();
-        
-        // --- 策略 2：物理清洗，无论 AI 怎么乱写，我们只要前三行有用的 ---
-        let lines = aiRaw.split('\n').filter(l => l.trim().length > 5);
-
-        const resBox = document.getElementById('transResult');
-        const compareArea = document.getElementById('transComparisonArea');
-        resBox.style.display = 'block';
-        
-        let html = '<h3 style="margin-top:0; color:#e67e22; font-size:16px;">📋 精准批改结果：</h3>';
-        copySentenceQueue = [];
-
-        translationTasks.forEach((t, i) => {
-            let rawText = lines[i] || "AI is busy, please submit again.";
-            
-            // --- 策略 3：单词洗涤器 (Deduplicator) ---
-            // 自动把 "maintains maintains" 变成 "maintains"
-            // 自动把 "starts starts starts" 变成 "starts"
-            let words = rawText.replace(/[\[\]"]/g, '').split(/\s+/);
-            let cleanedWords = [];
-            for (let j = 0; j < words.length; j++) {
-                // 如果当前词和上一个词一样，直接跳过
-                if (j > 0 && words[j].toLowerCase() === words[j-1].toLowerCase()) continue;
-                cleanedWords.push(words[j]);
-            }
-            let correctText = cleanedWords.join(' ').replace(/[\u4e00-\u9fa5]/g, '').trim();
-
-            // 如果洗完还是太乱（比如太长），给个温馨提示
-            if (correctText.split(' ').length > 30) {
-                correctText = "The teacher is tired. Please click submit again.";
-            }
-
-            t.correctEn = correctText;
-            copySentenceQueue.push(correctText);
-
-            html += `
-                <div style="margin-bottom:12px; border:1px solid #eee; padding:12px; border-radius:12px; background:white;">
-                    <div style="font-size:13px; color:#8E8E93; margin-bottom:5px;">句 ${i+1}: ${t.cn}</div>
-                    <div style="display:flex; gap:10px;">
-                        <div style="flex:1; border-right:1px solid #f0f0f0; padding-right:8px;">
-                            <small style="color:#e74c3c; font-weight:bold;">你的回答</small><br>
-                            <span style="font-size:14px; color:#333;">${t.userEn || "(未填写)"}</span>
-                        </div>
-                        <div style="flex:1; padding-left:5px;">
-                            <small style="color:#34C759; font-weight:bold;">地道参考</small><br>
-                            <b style="font-size:15px; color:#1B5E20;">${correctText}</b>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-
-        compareArea.innerHTML = html;
-        document.getElementById('transWorking').style.display = 'none';
-        btn.disabled = false;
-        btn.innerText = "✅ 提交 AI 批改";
-
-        startCopyExercise();
-
-    } catch (e) {
-        console.error(e);
-        alert("网络繁忙，请再试一次。");
-        btn.disabled = false;
-    }
-}
-
-// 4. 抄写练习逻辑
-function startCopyExercise() {
-    if (copySentenceQueue.length === 0) return;
-    
-    currentCopyCount = 0;
-    document.getElementById('copyExerciseArea').style.display = 'block';
-    updateCopyDisplay();
-    
-    // 自动滚动到抄写区
-    document.getElementById('copyExerciseArea').scrollIntoView({ behavior: 'smooth' });
-}
-
-function updateCopyDisplay() {
-    const target = copySentenceQueue[0];
-    const sentenceNum = 3 - copySentenceQueue.length + 1;
-    document.getElementById('copyTargetBox').innerText = target;
-    document.getElementById('copyProgressText').innerText = `第 ${sentenceNum}/3 句 | 抄写进度：${currentCopyCount} / 5`;
-    document.getElementById('copyInput').value = "";
-    document.getElementById('copyInput').focus();
-}
-
-function handleCopyInput() {
-    const inputEl = document.getElementById('copyInput');
-    const inputVal = inputEl.value.trim();
-    const targetVal = copySentenceQueue[0].trim();
-
-    // 科学校验：忽略最后的标点符号和大小写
-    const cleanInput = inputVal.replace(/[.,!?'"]/g, '').toLowerCase();
-    const cleanTarget = targetVal.replace(/[.,!?'"]/g, '').toLowerCase();
-
-    if (cleanInput === cleanTarget) {
-        currentCopyCount++;
-        if (currentCopyCount >= 5) {
-            // 当前句子完成
-            copySentenceQueue.shift();
-            if (copySentenceQueue.length > 0) {
-                alert("非常好！下一句。");
-                currentCopyCount = 0;
-                updateCopyDisplay();
-            } else {
-                // 全部 3 句完成
-                alert("🎉 太棒了！今日 3 句地道表达已深度肌肉记忆！");
-                resetTranslationSection();
-            }
-        } else {
-            updateCopyDisplay();
-        }
-    } else {
-        alert("拼写有误，请仔细对照上方绿色文字抄写哦！");
-        inputEl.select(); // 选中错误的文字方便修改
-    }
-}
-
-function resetTranslationSection() {
-    document.getElementById('copyExerciseArea').style.display = 'none';
-    document.getElementById('transResult').style.display = 'none';
-    document.getElementById('transSetup').style.display = 'block';
-}
-
-
-// ================= [7] AI 故事与记忆宫殿 =================
-async function generateRevisionStory() {
-    const apiKey = localStorage.getItem('silicon_api_key');
-    if(!apiKey) return alert("请存 Key");
-    const bounds = getGroupBounds();
-    let words = []; for(let i=bounds.start; i<=bounds.end; i++) if(wordList[i]) words.push(wordList[i].en);
-    const box = document.getElementById('aiStoryContent');
-    box.style.display="block"; box.innerText="AI 正在构思故事...";
-    try {
-        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
-            method: 'POST',
-            headers: {'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
-            body: JSON.stringify({model:'Qwen/Qwen2.5-7B-Instruct', messages: [{role:"user", content:`用单词[${words.join(",")}]写100词英文故事，加粗单词，带翻译。`}]})
-        });
-        const data = await res.json();
-        box.innerHTML = data.choices[0].message.content.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-        document.getElementById('btnShadowStory').style.display = 'block';
-    } catch(e) { box.innerText = "生成失败"; }
-}
-
-// ================= [终极修正：防死循环版 10词故事生成] =================
-async function generateGroupStory() {
-    // 1. 获取 API Key
-    const apiKey = localStorage.getItem('silicon_api_key');
-    if (!apiKey) {
-        alert("请先在‘互动聊天’版块设置并保存 API Key！");
-        return;
-    }
-
-    // 2. 获取当前组单词
-    const bounds = getGroupBounds();
-    let currentWords = [];
-    for (let i = bounds.start; i <= bounds.end; i++) {
-        if (wordList[i] && wordList[i].en) {
-            currentWords.push(wordList[i].en);
-        }
-    }
-
-    if (currentWords.length === 0) {
-        alert("当前组没有单词，请先选择一个单词组。");
-        return;
-    }
-
-    // 3. UI 状态
-    const storyArea = document.getElementById('groupStoryArea');
-    const storyContent = document.getElementById('groupStoryContent');
-    if (!storyArea) {
-        alert("HTML中缺少 id='groupStoryArea' 的显示区域");
-        return;
-    }
-
-    storyArea.style.display = 'block';
-    storyContent.innerText = "正在构思故事...";
-    storyArea.scrollIntoView({ behavior: 'smooth' });
-
-    // 4. 发送 API 请求
-    const prompt = `使用以下 10 个单词编写一段连贯的英语短文（约 100 词），单词需加粗。结尾附带中文翻译，中间用 --- 分隔：[${currentWords.join(", ")}]`;
-
-    try {
-        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'Qwen/Qwen2.5-7B-Instruct',
-                messages: [{ role: "user", content: prompt }],
-                temperature: 0.7
-            })
-        });
-
-        const data = await response.json();
-        const fullText = data.choices[0].message.content;
-
-        // 5. 渲染到界面
-        storyContent.innerHTML = fullText
-            .replace(/\n/g, '<br>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#e67e22;">$1</strong>');
-
-    } catch (error) {
-        console.error(error);
-        storyContent.innerText = "⚠️ 生成失败，请检查网络或 API Key。";
-    }
-}
-
-// 联动：同步到文章板块
-function transferGroupStoryToArticle() {
-    const storyBox = document.getElementById('groupStoryContent');
-    if (!storyBox || storyBox.innerText.includes("正在构思")) return;
-
-    const parts = storyBox.innerText.split('---');
-    currentArticleText = parts[0].trim();
-    
-    switchTab('articles');
-    
-    const articleDisplay = document.getElementById('articleDisplay');
-    articleDisplay.innerHTML = `
-        <div style="border-left: 4px solid #8e44ad; padding-left: 10px; background: #fdf6ff;">
-            <p style="color: #8e44ad; font-weight: bold;">✨ AI 单词挑战故事：</p>
-            <p>${currentArticleText}</p>
-            <p style="color: #7f8c8d; font-size: 14px;">${parts[1] || ""}</p>
-        </div>
-    `;
-    quitArticleDictation();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-
-function transferGroupStoryToArticle() {
-    const box = document.getElementById('groupStoryContent');
-    if (!box || box.innerText.includes("正在针对")) return;
-
-    // 分离中英文
-    const fullText = box.innerText;
-    const parts = fullText.split('---');
-    currentArticleText = parts[0].trim();
-    
-    // 跳转并注入
-    switchTab('articles');
-    const articleDisplay = document.getElementById('articleDisplay');
-    articleDisplay.innerHTML = `
-        <div style="border-left: 4px solid #8e44ad; padding-left: 10px; background: #fdf6ff; padding: 15px; border-radius: 12px;">
-            <p style="color: #8e44ad; font-weight: bold; font-size: 14px;">✨ 本组 AI 挑战故事：</p>
-            <p style="font-weight: 500; font-size: 18px;">${currentArticleText}</p>
-            <p style="color: #7f8c8d; font-size: 15px; margin-top: 15px;">${parts[1] || ""}</p>
-        </div>
-    `;
-
-    // 重置相关状态
-    if (typeof quitArticleDictation === 'function') quitArticleDictation();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function generateGroupMemoryPalace() {
-    const bounds = getGroupBounds();
-    const palaceArea = document.getElementById('memoryPalaceArea');
-    const palaceContent = document.getElementById('palaceContent');
-    let html = "";
-    for (let i = bounds.start; i <= bounds.end; i++) {
-        if (wordList[i]) {
-            html += `<div style="margin-bottom:10px; border-bottom:1px dashed #eee;"><b>${i - bounds.start + 1}. ${wordList[i].en}</b><br><small>${wordList[i].hook}</small></div>`;
-        }
-    }
-    palaceArea.style.display = 'block'; palaceContent.innerHTML = html;
-}
-
-// ================= [8] 互动聊天 =================
-function switchChatMode(mode) {
-    currentChatMode = mode;
-    document.getElementById('modeBtnEng').classList.toggle('active', mode === 'eng');
-    document.getElementById('modeBtnChn').classList.toggle('active', mode === 'chn');
-    document.getElementById('chatLog').innerHTML = `<div class="chat-bubble bubble-ai">${mode==='eng'?"Hi! Let's chat!":"你好！我是中文助手。"}</div>`;
-    chatHistory = [{role:"system", content: mode==='eng'?"You are a teacher. Correct errors.":"你是助手。"}];
-}
+// ================= [9] 辅助组件 (聊天/识别/文章) =================
 
 async function sendChatMessage() {
     const input = document.getElementById('chatMsgInput');
     const txt = input.value.trim(); if(!txt) return;
     const key = localStorage.getItem('silicon_api_key');
-    if(!key) return alert("请设置 Key");
+    if(!key) return alert("请存 Key");
     
     appendChatBubble(txt, 'user'); input.value = "";
     chatHistory.push({role:"user", content:txt});
@@ -958,10 +454,7 @@ async function sendChatMessage() {
     try {
         const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
             method: 'POST',
-            headers: {
-    'Authorization': `Bearer ${key}`, 
-    'Content-Type': 'application/json'
-},
+            headers: {'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json'},
             body: JSON.stringify({model:'Qwen/Qwen2.5-7B-Instruct', messages: chatHistory})
         });
         const data = await res.json();
@@ -973,13 +466,24 @@ async function sendChatMessage() {
 
 function startChatVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if(!SR) return alert("不支持");
     const rec = new SR(); rec.lang = currentChatMode === 'eng' ? 'en-US' : 'zh-CN';
     rec.start();
     rec.onresult = (e) => { sendChatMessage(e.results[0][0].transcript); };
 }
 
-// ================= [9] 辅助与文章 =================
+function startListeningForWord() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR(); rec.lang = 'en-US';
+    const resEl = document.getElementById('wordResult');
+    resEl.innerText = "聆听中..."; rec.start();
+    rec.onresult = (e) => {
+        const spoken = e.results[0][0].transcript.toLowerCase().replace(/[.,!?]/g, '').trim();
+        const target = document.getElementById('targetWord').innerText.toLowerCase().trim();
+        resEl.innerHTML = (spoken === target) ? `<span style="color:green">✅ ${spoken}</span>` : `<span style="color:red">❌ ${spoken}</span>`;
+    };
+}
+
+// ================= [10] 存入其余函数 =================
 function switchTab(t) {
     document.querySelectorAll('.page-section').forEach(p => p.style.display = 'none');
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -987,60 +491,96 @@ function switchTab(t) {
     document.getElementById('btn-' + t).classList.add('active');
     const b = document.getElementById('bookSelectorContainer'); if(b) b.style.display = (t === 'chat' ? 'none' : 'flex');
 }
-
-function appendChatBubble(t, s) {
-    const id = "msg-" + Date.now();
-    const div = document.createElement('div');
-    div.className = `chat-bubble bubble-${s}`; div.id = id; div.innerText = t;
-    document.getElementById('chatLog').appendChild(div);
-    document.getElementById('chatLog').scrollTop = document.getElementById('chatLog').scrollHeight;
-    return id;
+function changeGroup() {
+    const val = document.getElementById('groupSelect').value;
+    isWrongBookMode = (val === 'wrong_book');
+    currentWordIndex = isWrongBookMode ? 0 : getGroupBounds().start;
+    updateWordDisplay();
 }
-
+function nextWord() { currentWordIndex++; updateWordDisplay(); }
+function restartWords() { currentWordIndex = isWrongBookMode ? 0 : getGroupBounds().start; updateWordDisplay(); }
+function toggleMeaning() { const el = document.getElementById('chineseMeaning'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
+function toggleBlur() { const el = document.getElementById('targetWord'); el.style.filter = el.style.filter === 'blur(8px)' ? 'none' : 'blur(8px)'; }
+function readTargetWord() { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(document.getElementById('targetWord').innerText); u.lang='en-US'; window.speechSynthesis.speak(u); }
+function showAndPlayExample() { document.getElementById('exampleSentence').style.display='block'; let t = document.getElementById('exampleSentence').innerText.split('译:')[0]; window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang='en-US'; window.speechSynthesis.speak(u); }
+function generateGroupMemoryPalace() {
+    const bounds = getGroupBounds(); const area = document.getElementById('memoryPalaceArea'); const content = document.getElementById('palaceContent');
+    let source = isWrongBookMode ? JSON.parse(localStorage.getItem('eng_wrong_words') || '[]') : wordList;
+    let html = ""; for (let i = bounds.start; i <= bounds.end; i++) if (source[i]) html += `<div style="margin-bottom:10px; border-bottom:1px dashed #eee;"><b>${i+1}. ${source[i].en}</b><br><small>${source[i].hook}</small></div>`;
+    area.style.display = 'block'; content.innerHTML = html;
+}
+function closeMemoryPalace() { document.getElementById('memoryPalaceArea').style.display = 'none'; }
+function jumpToWrongBook() { document.getElementById('groupSelect').value = 'wrong_book'; changeGroup(); }
 function initArticleSelect() {
-    const s = document.getElementById('articleStartSelect');
-    const e = document.getElementById('articleEndSelect');
-    if(!s || !e) return;
-    s.innerHTML = ''; e.innerHTML = '';
-    articleList.forEach((_, i) => { s.add(new Option(`第 ${i+1} 段`, i)); e.add(new Option(`第 ${i+1} 段`, i)); });
+    const s = document.getElementById('articleStartSelect'), e = document.getElementById('articleEndSelect');
+    s.innerHTML = ''; e.innerHTML = ''; articleList.forEach((_, i) => { s.add(new Option(`第 ${i+1} 段`, i)); e.add(new Option(`第 ${i+1} 段`, i)); });
     changeArticleRange();
 }
-
 function changeArticleRange() {
-    const sVal = parseInt(document.getElementById('articleStartSelect').value);
-    const eVal = parseInt(document.getElementById('articleEndSelect').value);
-    const selected = articleList.slice(sVal, Math.max(sVal, eVal) + 1);
-    document.getElementById('articleDisplay').innerHTML = selected.map(item => `<div style="margin-bottom:10px;">${item.en}<br><small style="color:#7f8c8d">${item.zh}</small></div>`).join('');
-    currentArticleText = selected.map(item => item.en).join(' ');
+    const s = parseInt(document.getElementById('articleStartSelect').value), e = parseInt(document.getElementById('articleEndSelect').value);
+    const sel = articleList.slice(s, Math.max(s, e) + 1);
+    document.getElementById('articleDisplay').innerHTML = sel.map(item => `<div style="margin-bottom:10px;">${item.en}<br><small style="color:#7f8c8d">${item.zh}</small></div>`).join('');
+    currentArticleText = sel.map(item => item.en).join(' ');
 }
-
-// 其余辅助函数... (speakArticle, startArticleDictation等请保持之前实现)
-function saveApiKey() { localStorage.setItem('silicon_api_key', document.getElementById('siliconApiKey').value.trim()); alert("已保存"); }
+function speakArticle() { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(currentArticleText); u.lang = 'en-US'; u.rate = parseFloat(document.getElementById('speedSelect').value); window.speechSynthesis.speak(u); }
+function startListeningForArticle() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition; const rec = new SR(); rec.lang = 'en-US';
+    const con = document.getElementById('diffContent'); document.getElementById('diffResult').style.display = 'block';
+    con.innerText = "聆听中..."; rec.start();
+    rec.onresult = (e) => { const spoken = e.results[0][0].transcript; con.innerHTML = `听到了: "${spoken}"<br>${compareSentences(currentArticleText, spoken)}`; };
+}
+function compareSentences(original, spoken) {
+    let oW = original.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/), sW = spoken.replace(/[.,!?'"]/g, '').toLowerCase().split(/\s+/), oRaw = original.split(/\s+/), html = [], idx = 0;
+    for (let i = 0; i < oW.length; i++) {
+        if (!oW[i]) continue; let found = false;
+        for (let j = idx; j < Math.min(idx + 3, sW.length); j++) if (oW[i] === sW[j]) { found = true; idx = j + 1; break; }
+        html.push(found ? `<span style="color:green;font-weight:bold;">${oRaw[i]}</span>` : `<span style="color:red;text-decoration:line-through;">${oRaw[i]}</span>`);
+    } return html.join(' ');
+}
+function startArticleDictation() {
+    articleSentences = currentArticleText.match(/[^.!?\n]+[.!?\n]+/g) || [currentArticleText];
+    articleSentences = articleSentences.map(s => s.trim()).filter(s => s.length > 0);
+    currentSentenceIdx = 0; document.getElementById('articleDictationSetup').style.display = 'none';
+    document.getElementById('articleDictationRunning').style.display = 'block';
+    document.getElementById('articleDisplay').style.filter = 'blur(8px)'; playCurrentSentence();
+}
+function playCurrentSentence() {
+    clearTimeout(sentenceReplayTimer); window.speechSynthesis.cancel();
+    const s = articleSentences[currentSentenceIdx]; document.getElementById('articleDictProgress').innerText = `听写: ${currentSentenceIdx+1}/${articleSentences.length}`;
+    const h = document.getElementById('timerHint'); h.innerText = "🔊 第一遍..."; const u = new SpeechSynthesisUtterance(s); u.lang = 'en-US';
+    u.onend = () => { h.innerText = "⏳ 10秒后..."; sentenceReplayTimer = setTimeout(() => { h.innerText = "🔊 第二遍..."; window.speechSynthesis.speak(u); }, 10000); };
+    window.speechSynthesis.speak(u); setTimeout(()=>document.getElementById('articleDictInput').focus(), 200);
+}
+function checkArticleDictation() {
+    const input = document.getElementById('articleDictInput').value.trim(); const res = document.getElementById('articleDictResult');
+    res.style.display = 'block'; res.innerHTML = `写: ${input}<br>参: <b>${articleSentences[currentSentenceIdx]}</b>`;
+    document.getElementById('btnNextSentence').style.display = 'block';
+}
+function nextDictationSentence() {
+    currentSentenceIdx++; if (currentSentenceIdx >= articleSentences.length) { alert("完结！"); quitArticleDictation(); }
+    else { document.getElementById('articleDictResult').style.display = 'none'; document.getElementById('btnNextSentence').style.display = 'none'; document.getElementById('articleDictInput').value = ""; playCurrentSentence(); }
+}
+function quitArticleDictation() { clearTimeout(sentenceReplayTimer); window.speechSynthesis.cancel(); document.getElementById('articleDictationRunning').style.display = 'none'; document.getElementById('articleDictationSetup').style.display = 'block'; document.getElementById('articleDisplay').style.filter = 'none'; }
+function resetTranslationChallenge() { document.getElementById('copyExerciseArea').style.display='none'; document.getElementById('transResult').style.display='none'; document.getElementById('transSetup').style.display='block'; }
+function resetArtChallenge() { document.getElementById('artChallengeSetup').style.display = 'block'; document.getElementById('artChallengeResult').style.display = 'none'; }
+function switchChatMode(m) {
+    currentChatMode = m; document.getElementById('modeBtnEng').classList.toggle('active', m==='eng'); document.getElementById('modeBtnChn').classList.toggle('active', m==='chn');
+    document.getElementById('chatLog').innerHTML = `<div class="chat-bubble bubble-ai">${m==='eng'?"Hi teacher!":"你好！我是助手。"}</div>`;
+    chatHistory = [{role:"system", content: m==='eng'?"Teacher role. Correct errors.":"中文助手。"}];
+}
+function appendChatBubble(t, s) {
+    const id = "msg-" + Date.now(); const div = document.createElement('div'); div.className = `chat-bubble bubble-${s}`; div.id = id; div.innerText = t;
+    document.getElementById('chatLog').appendChild(div); document.getElementById('chatLog').scrollTop = document.getElementById('chatLog').scrollHeight; return id;
+}
+function saveApiKey() { localStorage.setItem('silicon_api_key', document.getElementById('siliconApiKey').value.trim()); alert("Key 已保存"); pushToCloud(); }
 function changeBook() { localStorage.setItem('selected_book_path', document.getElementById('bookSelect').value); location.reload(); }
-async function handleLogin() {
-    const email = document.getElementById('syncEmail').value;
-    if(supabaseClient) { const { error } = await supabaseClient.auth.signInWithOtp({ email }); alert(error ? error.message : "验证邮件已发送"); }
-}
+async function handleLogin() { const email = document.getElementById('syncEmail').value; if(supabaseClient) { const { error } = await supabaseClient.auth.signInWithOtp({ email }); alert(error ? error.message : "链接已发送"); } }
 function handleLogout() { if(supabaseClient) supabaseClient.auth.signOut().then(() => location.reload()); }
 function manualPush() { pushToCloud().then(() => alert("云端已同步")); }
-function closeMemoryPalace() { document.getElementById('memoryPalaceArea').style.display = 'none'; }
-function toggleSettings() { 
-    const s = document.getElementById('settingsCard');
-    s.style.display = (s.style.display === 'none' ? 'block' : 'none');
-}
-
-function jumpToWrongBook() {
-    const select = document.getElementById('groupSelect');
-    if (select) {
-        // 先检查生词本选项是否存在
-        let hasWrongBook = Array.from(select.options).some(opt => opt.value === 'wrong_book');
-        if (hasWrongBook) {
-            select.value = 'wrong_book';
-            changeGroup(); // 触发切换
-            // 自动滚动到练习区
-            document.getElementById('page-words').scrollIntoView({ behavior: 'smooth' });
-        } else {
-            alert("目前生词本是空的哦！");
-        }
-    }
+function toggleSettings() { const s = document.getElementById('settingsCard'); s.style.display = (s.style.display === 'none' ? 'block' : 'none'); }
+function nextArticleRange() {
+    const s = document.getElementById('articleStartSelect'), e = document.getElementById('articleEndSelect');
+    let span = parseInt(e.value) - parseInt(s.value) + 1, nextS = parseInt(s.value) + span;
+    if (nextS >= articleList.length) nextS = 0;
+    s.value = nextS; e.value = Math.min(nextS + span - 1, articleList.length - 1); changeArticleRange();
 }
