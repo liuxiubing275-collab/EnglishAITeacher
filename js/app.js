@@ -280,37 +280,118 @@ async function startTranslationChallenge() {
 
 async function gradeTranslations() {
     const apiKey = localStorage.getItem('silicon_api_key');
+    if (!apiKey) return alert("请先设置 API Key");
+
     const inputs = document.querySelectorAll('.trans-user-input');
-    inputs.forEach(input => translationTasks[input.dataset.idx].userEn = input.value.trim());
-    document.getElementById('btnSubmitTrans').innerText = "正在批改...";
+    inputs.forEach(input => {
+        const idx = input.getAttribute('data-idx');
+        translationTasks[idx].userEn = input.value.trim();
+    });
+
+    const btn = document.getElementById('btnSubmitTrans');
+    btn.innerText = "⏳ AI 正在进行纯净批改...";
+    btn.disabled = true;
+
+    // --- 策略 1：极简指令 + 强制英文约束 ---
+    const prompt = `Task: Translate the following 3 Chinese sentences into English.
+    1. ${translationTasks[0].cn}
+    2. ${translationTasks[1].cn}
+    3. ${translationTasks[2].cn}
+
+    Rules:
+    - Output ONLY English.
+    - NO Chinese characters.
+    - NO explanations.
+    - Format: One English sentence per line.`;
 
     try {
-        const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
             method: 'POST',
-            headers: {'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
-                model:'Qwen/Qwen2.5-7B-Instruct', 
-                messages: [{role:"user", content: `批改：${translationTasks.map(t=>t.cn + "->" + t.userEn).join('; ')}。仅输出地道答案，用###分隔。`}],
-                temperature: 0.1
+                model: 'Qwen/Qwen2.5-7B-Instruct',
+                messages: [
+                    { role: "system", content: "You are a professional Chinese-to-English translator. You only output plain English sentences. You never use Chinese in your response." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.1,      // 极低随机性，防止胡言乱语
+                top_p: 0.1,
+                frequency_penalty: 1.5, // 强力防止单词重复 (如 tarted tarted)
+                max_tokens: 300
             })
         });
-        const data = await res.json();
-        const corrects = data.choices[0].message.content.split('###').map(s => s.trim().replace(/^[\d.、\s]+/, ''));
         
-        document.getElementById('transResult').style.display = 'block';
-        document.getElementById('transWorking').style.display = 'none';
+        const data = await response.json();
+        let aiRaw = data.choices[0].message.content.trim();
+        
+        // --- 策略 2：物理清洗（关键修复点） ---
+        let lines = aiRaw.split('\n').filter(l => l.trim().length > 3);
+
+        const resBox = document.getElementById('transResult');
+        const compareArea = document.getElementById('transComparisonArea');
+        resBox.style.display = 'block';
+        
+        let html = '<h3 style="color:#e67e22; font-size:16px;">📋 地道参考答案：</h3>';
         copySentenceQueue = [];
-        let html = "<h3>批改报告</h3>";
+
         translationTasks.forEach((t, i) => {
-            const correct = corrects[i] || "Error";
-            copySentenceQueue.push(correct);
-            html += `<div style="margin-bottom:10px; border:1px solid #eee; padding:8px; border-radius:10px;">
-                <p>${t.cn}</p><p style="color:red; margin:0;">你写: ${t.userEn}</p><p style="color:green; font-weight:bold; margin:0;">地道: ${correct}</p>
-            </div>`;
+            let rawText = lines[i] || "AI is thinking, please try again.";
+            
+            // 1. 去掉所有中文字符（物理屏蔽 kuk 或中文解释）
+            let englishOnly = rawText.replace(/[\u4e00-\u9fa5]/g, '').trim();
+            
+            // 2. 去掉开头的序号 (如 "1. ", "2-")
+            englishOnly = englishOnly.replace(/^\d+[\.、\-\s]+/, '');
+
+            // 3. 单词去重洗涤器（防止 tarted tarted 这种重复）
+            let words = englishOnly.split(/\s+/);
+            let cleanedWords = [];
+            for (let j = 0; j < words.length; j++) {
+                if (j > 0 && words[j].toLowerCase() === words[j-1].toLowerCase()) continue;
+                cleanedWords.push(words[j]);
+            }
+            let correctText = cleanedWords.join(' ').trim();
+
+            // 如果洗完发现是空的，给个兜底
+            if (correctText.length < 5) correctText = "Translation failed, please resubmit.";
+
+            t.correctEn = correctText;
+            copySentenceQueue.push(correctText);
+
+            html += `
+                <div style="margin-bottom:12px; border:1px solid #eee; padding:12px; border-radius:12px; background:white;">
+                    <div style="font-size:13px; color:#8E8E93; margin-bottom:5px;">Q${i+1}: ${t.cn}</div>
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1; border-right:1px solid #f0f0f0; padding-right:8px;">
+                            <small style="color:#e74c3c; font-weight:bold;">你的回答</small><br>
+                            <span style="font-size:14px; color:#333;">${t.userEn || "(未填写)"}</span>
+                        </div>
+                        <div style="flex:1; padding-left:5px;">
+                            <small style="color:#34C759; font-weight:bold;">地道参考</small><br>
+                            <b style="font-size:15px; color:#1B5E20;">${correctText}</b>
+                        </div>
+                    </div>
+                </div>
+            `;
         });
-        document.getElementById('transComparisonArea').innerHTML = html;
+
+        compareArea.innerHTML = html;
+        document.getElementById('transWorking').style.display = 'none';
+        btn.disabled = false;
+        btn.innerText = "✅ 提交 AI 批改";
+
+        // 启动抄写练习
         startCopyExercise();
-    } catch(e) { alert("批改失败"); }
+
+    } catch (e) {
+        console.error(e);
+        alert("网络超时，请检查 API Key 后重试。");
+        btn.disabled = false;
+        btn.innerText = "✅ 提交 AI 批改";
+    }
 }
 
 function startCopyExercise() { currentCopyCount = 0; document.getElementById('copyExerciseArea').style.display = 'block'; updateCopyDisplay(); }
