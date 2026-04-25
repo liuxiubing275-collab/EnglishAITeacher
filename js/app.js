@@ -564,7 +564,8 @@ function updateDailyDashboard() {
     tasks.push(`🆕 <b>新课：</b> 第 <a href="#" onclick="jumpToGroup(${maxG})" style="color:#f1c40f; font-weight:bold;">${maxG+1}</a> 组`);
     let review = [];
     for (let g in history) {
-        const parts = history[g].split('-');
+        const raw = typeof history[g] === 'string' ? history[g] : history[g].value;
+const parts = raw.split('-');
         const d = new Date(parts[0], parts[1]-1, parts[2]);
         const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
         if ([1, 3, 6].includes(diff)) review.push(`<a href="#" onclick="jumpToGroup(${g-1})" style="color:#f1c40f; font-weight:bold; margin-right:8px;">第 ${g} 组</a>`);
@@ -589,7 +590,8 @@ async function generateRevisionStory() {
     let reviewGroupNums = [];
 
     for (let gNum in history) {
-        const dateParts = history[gNum].split('-');
+        const raw = typeof history[gNum] === 'string' ? history[gNum] : history[gNum].value;
+        const dateParts = raw.split('-');
         const studyDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
         const diffDays = Math.round((today.getTime() - studyDate.getTime()) / 86400000);
 
