@@ -6,7 +6,7 @@
 // ================= [0] Supabase 高级同步模块 =================
 
 const SB_URL = 'https://bhilewmilbhxowxwwyfq.supabase.co';
-const SB_KEY = '你的key';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoaWxld21pbGJoeG93eHd3eWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTYyNTUsImV4cCI6MjA5MjUzMjI1NX0._Kj-4i2KTU7LO07AwNkKAta-0qluh4BygU_OMwAKc6o';
 
 // ===== 用户ID =====
 let USER_ID = localStorage.getItem('sb_user_id');
