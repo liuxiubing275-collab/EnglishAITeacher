@@ -24,10 +24,6 @@ let currentSentenceIdx = 0;
 let sentenceReplayTimer = null;
 let currentChatMode = 'eng';
 let chatHistory = [];
-let translationTasks = [];
-let copySentenceQueue = [];
-let currentCopyCount = 0;
-let artChallengeData = [];
 
 // 获取上次选择的课本，如果没有则用默认
 let currentBookPath = localStorage.getItem('selected_book_path') || 'default';
