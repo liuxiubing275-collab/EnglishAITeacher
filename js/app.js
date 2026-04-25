@@ -1,6 +1,6 @@
 /**
-AI 英语私教 - 终极功能整合版 (含生词本)
-包含：基础控制、单词练习、拼写测验、1247看板、AI故事、记忆宫殿、文章听写、AI对话、生词本
+AI 英语私教 - 终极功能整合版 (含生词本导出/独立复习)
+包含：基础控制、单词练习、拼写测验、1247看板、AI故事、记忆宫殿、文章听写、AI对话、生词本管理
 */
 // ================= [0] 配置区 =================
 const SB_URL = 'https://bhilewmilbhxowxwwyfq.supabase.co';
@@ -31,6 +31,11 @@ window.onload = function() {
   if (originalOnload) originalOnload();
   document.getElementById('bookSelect').value = currentBookPath;
 };
+
+// 📖 生词本独立复习状态
+let isMistakeReviewMode = false;
+let mistakeReviewList = [];
+let mistakeReviewIdx = 0;
 
 // ================= [2] 初始化与数据加载 =================
 window.onload = function() {
@@ -274,7 +279,9 @@ function checkDictation() {
 let groupTestAnswers = [];
 let groupTestCurrentIndex = 0;
 let groupTestBounds = null;
+
 function startGroupTest() {
+  if (isMistakeReviewMode) return; // 复习模式下禁止启动常规测验
   if (wordList.length === 0) return;
   groupTestBounds = getGroupBounds(); 
   groupTestAnswers = []; 
@@ -296,13 +303,34 @@ function playTestWord() {
   document.getElementById('groupTestProgress').innerText = `测验中: ${groupTestCurrentIndex + 1} / ${groupTestBounds.total}`;
   setTimeout(() => document.getElementById('groupTestInput').focus(), 200);
 }
+
+// 🔄 统一提交入口：自动区分常规测验与生词本复习
 function submitTestWord() {
   const val = document.getElementById('groupTestInput').value.trim();
-  groupTestAnswers.push(val);
-  document.getElementById('groupTestInput').value = "";
-  groupTestCurrentIndex++;
-  if (groupTestCurrentIndex < groupTestBounds.total) playTestWord();
-  else showGroupTestResult();
+  if (!val) return;
+
+  if (isMistakeReviewMode) {
+    // 📖 生词本复习逻辑
+    const target = mistakeReviewList[mistakeReviewIdx];
+    const isCorrect = val.toLowerCase() === target.en.toLowerCase();
+    if (isCorrect) syncMistakeBook(target, true); // 拼对实时移除
+    
+    mistakeReviewIdx++;
+    if (mistakeReviewIdx < mistakeReviewList.length) {
+      document.getElementById('groupTestProgress').innerText = `📖 生词本复习: ${mistakeReviewIdx + 1} / ${mistakeReviewList.length}`;
+      document.getElementById('groupTestInput').value = "";
+      playMistakeWord();
+    } else {
+      showMistakeReviewResult();
+    }
+  } else {
+    // 📦 常规测验逻辑
+    groupTestAnswers.push(val);
+    document.getElementById('groupTestInput').value = "";
+    groupTestCurrentIndex++;
+    if (groupTestCurrentIndex < groupTestBounds.total) playTestWord();
+    else showGroupTestResult();
+  }
 }
 
 // 📖 新增：生词本管理核心逻辑
@@ -313,15 +341,72 @@ function syncMistakeBook(wordObj, isCorrect) {
   if (!wordObj || !wordObj.en) return;
   let book = getMistakeBook();
   if (isCorrect) {
-    // 写对了：如果之前在生词本里，移除它
     book = book.filter(w => w.en.toLowerCase() !== wordObj.en.toLowerCase());
   } else {
-    // 写错了：如果不在生词本里，加入它
     if (!book.some(w => w.en.toLowerCase() === wordObj.en.toLowerCase())) {
       book.push({ en: wordObj.en, zh: wordObj.zh, addedAt: Date.now() });
     }
   }
   localStorage.setItem('eng_mistake_book', JSON.stringify(book));
+}
+
+// 📤 一键导出功能
+function exportMistakeBook() {
+  const book = getMistakeBook();
+  if (book.length === 0) return alert("📖 生词本为空，暂无可导出的单词。");
+  let csvContent = "data:text/csv;charset=utf-8,\uFEFFWord,Chinese,Added Date\n";
+  book.forEach(w => {
+    const date = new Date(w.addedAt).toLocaleDateString();
+    csvContent += `"${w.en.replace(/"/g, '""')}","${w.zh.replace(/"/g, '""')}","${date}"\n`;
+  });
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `生词本_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// 🎯 独立复习功能
+function startMistakeBookReview() {
+  mistakeReviewList = getMistakeBook();
+  if (mistakeReviewList.length === 0) return alert("📖 生词本为空，请先在测验中积累生词！");
+  isMistakeReviewMode = true;
+  mistakeReviewIdx = 0;
+  
+  document.getElementById('dictationSingleMode').style.display = 'none';
+  document.getElementById('dictationGroupMode').style.display = 'block';
+  document.getElementById('dictationResultMode').style.display = 'none';
+  document.getElementById('groupTestProgress').innerText = `📖 生词本复习: ${mistakeReviewIdx + 1} / ${mistakeReviewList.length}`;
+  document.getElementById('targetWord').style.filter = 'blur(8px)';
+  playMistakeWord();
+}
+
+function playMistakeWord() {
+  const word = mistakeReviewList[mistakeReviewIdx].en;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(word);
+  u.lang = 'en-US';
+  window.speechSynthesis.speak(u);
+  document.getElementById('targetWord').style.filter = 'blur(8px)';
+  document.getElementById('groupTestInput').value = "";
+  setTimeout(() => document.getElementById('groupTestInput').focus(), 200);
+}
+
+function showMistakeReviewResult() {
+  alert("🎉 生词本本轮复习完成！已掌握的单词已自动移除。");
+  updateDailyDashboard();
+  quitMistakeReview();
+}
+
+function quitMistakeReview() {
+  isMistakeReviewMode = false;
+  document.getElementById('dictationGroupMode').style.display = 'none';
+  document.getElementById('dictationResultMode').style.display = 'none';
+  document.getElementById('dictationSingleMode').style.display = 'block';
+  document.getElementById('targetWord').style.filter = 'none';
+  updateWordDisplay();
 }
 
 function showGroupTestResult() {
@@ -332,10 +417,7 @@ function showGroupTestResult() {
     const target = wordList[groupTestBounds.start + i];
     const userAnswer = groupTestAnswers[i] || "";
     const isOk = userAnswer.toLowerCase().trim() === target.en.toLowerCase().trim();
-    
-    // 🔄 同步生词本状态
     syncMistakeBook(target, isOk);
-
     if (isOk) correct++;
     html += `<li class="${isOk?'correct-item':'incorrect-item'}"><b>${target.en}</b>: ${isOk?'✅':'❌ 你写了: '+userAnswer}<br><small>${target.zh}</small></li>`;
   }
@@ -366,7 +448,7 @@ async function pushToCloud() {
     eng_study_history: localStorage.getItem('eng_study_history'),
     selected_book_path: localStorage.getItem('selected_book_path'),
     silicon_api_key: localStorage.getItem('silicon_api_key'),
-    eng_mistake_book: localStorage.getItem('eng_mistake_book') // 同步生词本到云端
+    eng_mistake_book: localStorage.getItem('eng_mistake_book')
   };
   await supabaseClient.from('user_progress').upsert({ id: user.id, data: progressData, updated_at: new Date() });
 }
@@ -427,11 +509,12 @@ function updateDailyDashboard() {
   }
   if (review.length) tasks.push(`<br>🔄 <b>必复习：</b> ${review.reverse().join('')}`);
 
-  // 📖 新增：生词本统计提示
   const mistakeBook = getMistakeBook();
   const mistakeCount = mistakeBook.length;
   if (mistakeCount > 0) {
-    tasks.push(`<br>📖 <b>生词本：</b> 当前共 <span style="color:#e74c3c; font-weight:bold;">${mistakeCount}</span> 个待攻克单词`);
+    tasks.push(`<br>📖 <b>生词本：</b> 当前共 <span style="color:#e74c3c; font-weight:bold;">${mistakeCount}</span> 个待攻克单词
+    <button onclick="startMistakeBookReview()" style="margin-left:6px; padding:2px 8px; font-size:11px; background:#3498db; color:white; border:none; border-radius:4px; cursor:pointer;">🎯 独立复习</button>
+    <button onclick="exportMistakeBook()" style="margin-left:4px; padding:2px 8px; font-size:11px; background:#27ae60; color:white; border:none; border-radius:4px; cursor:pointer;">📤 导出CSV</button>`);
   } else {
     tasks.push(`<br>📖 <b>生词本：</b> 🌟 太棒了！暂无生词`);
   }
