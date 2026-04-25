@@ -1,6 +1,6 @@
 /**
-AI 英语私教 - 终极功能整合版
-包含：基础控制、单词练习、拼写测验、1247看板、AI故事、记忆宫殿、文章听写、AI对话
+AI 英语私教 - 终极功能整合版 (含生词本)
+包含：基础控制、单词练习、拼写测验、1247看板、AI故事、记忆宫殿、文章听写、AI对话、生词本
 */
 // ================= [0] 配置区 =================
 const SB_URL = 'https://bhilewmilbhxowxwwyfq.supabase.co';
@@ -304,15 +304,40 @@ function submitTestWord() {
   if (groupTestCurrentIndex < groupTestBounds.total) playTestWord();
   else showGroupTestResult();
 }
+
+// 📖 新增：生词本管理核心逻辑
+function getMistakeBook() {
+  return JSON.parse(localStorage.getItem('eng_mistake_book') || '[]');
+}
+function syncMistakeBook(wordObj, isCorrect) {
+  if (!wordObj || !wordObj.en) return;
+  let book = getMistakeBook();
+  if (isCorrect) {
+    // 写对了：如果之前在生词本里，移除它
+    book = book.filter(w => w.en.toLowerCase() !== wordObj.en.toLowerCase());
+  } else {
+    // 写错了：如果不在生词本里，加入它
+    if (!book.some(w => w.en.toLowerCase() === wordObj.en.toLowerCase())) {
+      book.push({ en: wordObj.en, zh: wordObj.zh, addedAt: Date.now() });
+    }
+  }
+  localStorage.setItem('eng_mistake_book', JSON.stringify(book));
+}
+
 function showGroupTestResult() {
   document.getElementById('dictationGroupMode').style.display = 'none';
   document.getElementById('dictationResultMode').style.display = 'block';
   let correct = 0; let html = "";
   for (let i=0; i < groupTestBounds.total; i++) {
     const target = wordList[groupTestBounds.start + i];
-    const isOk = groupTestAnswers[i].toLowerCase() === target.en.toLowerCase();
+    const userAnswer = groupTestAnswers[i] || "";
+    const isOk = userAnswer.toLowerCase().trim() === target.en.toLowerCase().trim();
+    
+    // 🔄 同步生词本状态
+    syncMistakeBook(target, isOk);
+
     if (isOk) correct++;
-    html += `<li class="${isOk?'correct-item':'incorrect-item'}"><b>${target.en}</b>: ${isOk?'✅':'❌ 你写了: '+groupTestAnswers[i]}<br><small>${target.zh}</small></li>`;
+    html += `<li class="${isOk?'correct-item':'incorrect-item'}"><b>${target.en}</b>: ${isOk?'✅':'❌ 你写了: '+userAnswer}<br><small>${target.zh}</small></li>`;
   }
   document.getElementById('groupTestScore').innerText = `正确率: ${Math.round(correct/groupTestBounds.total*100)}%`;
   document.getElementById('groupTestResultList').innerHTML = html;
@@ -340,7 +365,8 @@ async function pushToCloud() {
   const progressData = {
     eng_study_history: localStorage.getItem('eng_study_history'),
     selected_book_path: localStorage.getItem('selected_book_path'),
-    silicon_api_key: localStorage.getItem('silicon_api_key')
+    silicon_api_key: localStorage.getItem('silicon_api_key'),
+    eng_mistake_book: localStorage.getItem('eng_mistake_book') // 同步生词本到云端
   };
   await supabaseClient.from('user_progress').upsert({ id: user.id, data: progressData, updated_at: new Date() });
 }
@@ -400,6 +426,16 @@ function updateDailyDashboard() {
     if ([1, 3, 6].includes(diff)) review.push(`<a href="#" onclick="jumpToGroup(${g-1})" style="color:#f1c40f; font-weight:bold; margin-right:8px;">第 ${g} 组</a>`);
   }
   if (review.length) tasks.push(`<br>🔄 <b>必复习：</b> ${review.reverse().join('')}`);
+
+  // 📖 新增：生词本统计提示
+  const mistakeBook = getMistakeBook();
+  const mistakeCount = mistakeBook.length;
+  if (mistakeCount > 0) {
+    tasks.push(`<br>📖 <b>生词本：</b> 当前共 <span style="color:#e74c3c; font-weight:bold;">${mistakeCount}</span> 个待攻克单词`);
+  } else {
+    tasks.push(`<br>📖 <b>生词本：</b> 🌟 太棒了！暂无生词`);
+  }
+
   dashboard.innerHTML = tasks.join('');
 }
 function jumpToGroup(idx) { document.getElementById('groupSelect').value = idx; changeGroup(); }
@@ -704,7 +740,7 @@ async function generateGroupStory() {
   const bounds = getGroupBounds();
   let currentWords = [];
   for (let i = bounds.start; i <= bounds.end; i++) { if (wordList[i] && wordList[i].en) currentWords.push(wordList[i].en); }
-  if (currentWords.length === 0) { alert("当前组没有单词，请先选择一个单词组。"); return; }
+  if (currentWords.length === 0) { alert("当前组没有单词，请选一个单词组。"); return; }
 
   const storyArea = document.getElementById('groupStoryArea');
   const storyContent = document.getElementById('groupStoryContent');
@@ -887,7 +923,7 @@ async function gradeArticleChallenge() {
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'Qwen/Qwen2.5-7B-Instruct', messages: [{ role: "system", content: "你是一个精准的英语翻译批改助手。" }, { role: "user", content: prompt + "\n" + checkContent }], temperature: 0.3 })
     });
-    const data = await res.json(); // 修复了原代码中 response 未定义的 Bug
+    const data = await res.json();
     const aiResponse = data.choices[0].message.content; 
 
     const getFeedback = (tag) => {
