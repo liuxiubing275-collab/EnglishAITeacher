@@ -3,137 +3,82 @@
  * 包含：基础控制、单词练习、拼写测验、1247看板、AI故事、记忆宫殿、文章听写、AI对话
  */
 
-// ================= [0] Supabase 高级同步模块 =================
+// ================= [0] 初始化 Supabase  =================// 1. (填入你第一步获取
+const supabaseUrl = 'https://bhilewmilbhxowxwwyfq.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoaWxld21pbGJoeG93eHd3eWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTYyNTUsImV4cCI6MjA5MjUzMjI1NX0._Kj-4i2KTU7LO07AwNkKAta-0qluh4BygU_OMwAKc6o';
+const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-const SB_URL = 'https://bhilewmilbhxowxwwyfq.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoaWxld21pbGJoeG93eHd3eWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTYyNTUsImV4cCI6MjA5MjUzMjI1NX0._Kj-4i2KTU7LO07AwNkKAta-0qluh4BygU_OMwAKc6o';
+// 2. 监听登录状态
+supabase.auth.onAuthStateChange((event, session) => {
+    if (session) {
+        document.getElementById('authSection').style.display = 'none';
+        document.getElementById('userSection').style.display = 'block';
+        document.getElementById('userEmailDisplay').innerText = "已登录: " + session.user.email;
+        pullFromCloud(); // 登录后自动下载云端进度
+    } else {
+        document.getElementById('authSection').style.display = 'block';
+        document.getElementById('userSection').style.display = 'none';
+    }
+});
 
-// ===== 用户ID =====
-let USER_ID = localStorage.getItem('sb_user_id');
-if (!USER_ID) {
-    USER_ID = 'user_' + Math.random().toString(36).slice(2);
-    localStorage.setItem('sb_user_id', USER_ID);
+// 3. 登录逻辑 (无密码登录)
+async function handleLogin() {
+    const email = document.getElementById('syncEmail').value;
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    if (error) alert(error.message);
+    else alert("验证邮件已发送！请在手机/电脑上点击邮件链接完成登录。");
 }
 
-// ===== 带时间戳的本地存储 =====
-function setLocal(key, value) {
-    const data = {
-        value: value,
-        updated_at: Date.now()
+// 4. 将本地数据推送到云端 (无感同步的核心)
+async function pushToCloud() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const progressData = {
+        eng_study_history: localStorage.getItem('eng_study_history'),
+        selected_book_path: localStorage.getItem('selected_book_path'),
+        silicon_api_key: localStorage.getItem('silicon_api_key')
     };
-    localStorage.setItem(key, JSON.stringify(data));
-    scheduleSync();
+
+    const { error } = await supabase
+        .from('user_progress')
+        .upsert({ id: user.id, data: progressData, updated_at: new Date() });
+    
+    if (!error) console.log("云端同步成功");
 }
 
-function getLocal(key) {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    try {
-        return JSON.parse(raw).value;
-    } catch {
-        return raw;
-    }
-}
+// 5. 从云端拉取数据并覆盖本地
+async function pullFromCloud() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-function getLocalFull(key) {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    try {
-        return JSON.parse(raw);
-    } catch {
-        return { value: raw, updated_at: 0 };
-    }
-}
+    const { data, error } = await supabase
+        .from('user_progress')
+        .select('data')
+        .single();
 
-// ===== Supabase 请求 =====
-async function sbFetch(path, options = {}) {
-    return fetch(`${SB_URL}/rest/v1/${path}`, {
-        ...options,
-        headers: {
-            'apikey': SB_KEY,
-            'Authorization': `Bearer ${SB_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation',
-            ...options.headers
-        }
-    });
-}
-
-// ===== 同步字段列表 =====
-const SYNC_KEYS = [
-    'eng_study_history',
-    'selected_book_path',
-    'silicon_api_key'
-];
-
-// ===== 上传 =====
-async function syncToCloud() {
-    try {
-        let payload = {};
-
-        SYNC_KEYS.forEach(k => {
-            const data = getLocalFull(k);
-            if (data) payload[k] = data;
-        });
-
-        await sbFetch('study_data', {
-            method: 'POST',
-            headers: { 'Prefer': 'resolution=merge-duplicates' },
-            body: JSON.stringify({
-                user_id: USER_ID,
-                data: payload,
-                updated_at: new Date().toISOString()
-            })
-        });
-
-        console.log("☁️ 已同步（高级）");
-    } catch (e) {
-        console.warn("同步失败:", e);
-    }
-}
-
-// ===== 下载 + 冲突解决 =====
-async function loadFromCloud() {
-    try {
-        const res = await sbFetch(`study_data?user_id=eq.${USER_ID}&select=*`);
-        const list = await res.json();
-        if (!list.length) return;
-
-        const cloud = list[0].data;
-
-        SYNC_KEYS.forEach(key => {
-            const localData = getLocalFull(key);
-            const cloudData = cloud[key];
-
-            if (!cloudData) return;
-
-            // 👉 冲突解决：谁新用谁
-            if (!localData || cloudData.updated_at > localData.updated_at) {
-                localStorage.setItem(key, JSON.stringify(cloudData));
-                console.log(`⬇️ 云覆盖本地: ${key}`);
+    if (data && data.data) {
+        const cloudData = data.data;
+        let changed = false;
+        for (let key in cloudData) {
+            if (cloudData[key] && localStorage.getItem(key) !== cloudData[key]) {
+                localStorage.setItem(key, cloudData[key]);
+                changed = true;
             }
-        });
-
-    } catch (e) {
-        console.warn("拉取失败:", e);
+        }
+        if (changed) {
+            console.log("本地已更新为云端进度");
+            // 只有当历史记录发生变化时才刷新界面，避免死循环
+            updateDailyDashboard(); 
+        }
     }
 }
 
-// ===== 防抖同步（关键优化）=====
-let syncTimer = null;
-
-function scheduleSync() {
-    if (syncTimer) clearTimeout(syncTimer);
-
-    syncTimer = setTimeout(() => {
-        syncToCloud();
-    }, 1500); // 1.5秒防抖
+// 6. 退出登录
+async function handleLogout() {
+    await supabase.auth.signOut();
+    location.reload();
 }
-
-// ===== 定时兜底同步 =====
-setInterval(() => {
-    syncToCloud();
-}, 30000); // 每30秒
 
 // ================= [1] 全局变量 =================
 let activeUtterance = null;
@@ -149,28 +94,27 @@ let chatHistory = [];
 // 获取上次选择的课本，如果没有则用默认
 let currentBookPath = localStorage.getItem('selected_book_path') || 'default';
 
+// 在 window.onload 中设置下拉框初始值
+const originalOnload = window.onload;
+window.onload = function() {
+    if (originalOnload) originalOnload();
+    document.getElementById('bookSelect').value = currentBookPath;
+};
 
 // ================= [2] 初始化与数据加载 =================
-window.onload = async function() {
-
-    await loadFromCloud();   // ⭐ 新增（必须最前）
-
+window.onload = function() {
     loadAllData();
-
-    document.getElementById('bookSelect').value = currentBookPath;
-
-    const savedKey = getLocal('silicon_api_key');
+    const savedKey = localStorage.getItem('silicon_api_key');
     if (savedKey) {
         document.getElementById('siliconApiKey').value = savedKey;
         document.getElementById('apiKeyStatus').innerText = "✅ API Key 已读取";
         document.getElementById('apiKeyStatus').style.color = "#27ae60";
         document.getElementById('settingsCard').style.display = 'none';
     }
-
     switchTab('words'); 
     switchChatMode('eng');
     updateDailyDashboard();
-
+    // 实时更新看板状态
     setInterval(() => {
         const val = document.getElementById('groupSelect').value;
         const gNum = val === 'all' ? '全' : parseInt(val) + 1;
@@ -178,6 +122,7 @@ window.onload = async function() {
         if(activeSpan) activeSpan.innerText = gNum;
     }, 500);
 };
+
 async function loadAllData() {
     // 确定文件路径
     let wordPath = 'NewWords.txt';
@@ -236,9 +181,8 @@ function changeBook() {
     currentBookPath = select.value;
     
     // 存入本地，下次打开还是这本课本
-    setLocal('selected_book_path', currentBookPath);
-    syncToCloud();  // ⭐ 新增
-
+    localStorage.setItem('selected_book_path', currentBookPath);
+    
     // 重置当前单词索引
     currentWordIndex = 0;
     
@@ -531,7 +475,7 @@ function getLocalDateString(date) {
     return `${y}-${m}-${d}`;
 }
 
-async function markCurrentGroupFinished() {
+function markCurrentGroupFinished() {
     const val = document.getElementById('groupSelect').value;
     if (val === 'all') return alert("请选择具体组。");
     const currentGNum = parseInt(val) + 1;
@@ -546,11 +490,10 @@ async function markCurrentGroupFinished() {
         else target.setDate(today.getDate() - 20);
         history[i] = getLocalDateString(target);
     }
-    setLocal('eng_study_history', JSON.stringify(history));
+    localStorage.setItem('eng_study_history', JSON.stringify(history));
     alert("🎉 记录成功！复习清单已更新。");
     updateDailyDashboard();
-localStorage.setItem('eng_study_history', JSON.stringify(history));
-await syncToCloud();   // ⭐ 新增
+    pushToCloud(); 
 }
 
 function updateDailyDashboard() {
@@ -564,8 +507,7 @@ function updateDailyDashboard() {
     tasks.push(`🆕 <b>新课：</b> 第 <a href="#" onclick="jumpToGroup(${maxG})" style="color:#f1c40f; font-weight:bold;">${maxG+1}</a> 组`);
     let review = [];
     for (let g in history) {
-        const raw = typeof history[g] === 'string' ? history[g] : history[g].value;
-const parts = raw.split('-');
+        const parts = history[g].split('-');
         const d = new Date(parts[0], parts[1]-1, parts[2]);
         const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
         if ([1, 3, 6].includes(diff)) review.push(`<a href="#" onclick="jumpToGroup(${g-1})" style="color:#f1c40f; font-weight:bold; margin-right:8px;">第 ${g} 组</a>`);
@@ -590,8 +532,7 @@ async function generateRevisionStory() {
     let reviewGroupNums = [];
 
     for (let gNum in history) {
-        const raw = typeof history[gNum] === 'string' ? history[gNum] : history[gNum].value;
-        const dateParts = raw.split('-');
+        const dateParts = history[gNum].split('-');
         const studyDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
         const diffDays = Math.round((today.getTime() - studyDate.getTime()) / 86400000);
 
@@ -981,13 +922,11 @@ function toggleSettings() {
     const s = document.getElementById('settingsCard');
     s.style.display = s.style.display === 'none' ? 'block' : 'none';
 }
-async function saveApiKey() {
+function saveApiKey() {
     const k = document.getElementById('siliconApiKey').value.trim();
-    localStorage.setItem('silicon_api_key', k);
-    await syncToCloud();   // ⭐ 新增
-    alert("保存成功");
-    toggleSettings();
+    localStorage.setItem('silicon_api_key', k); alert("保存成功"); toggleSettings();
 }
+
 // ================= [10] AI 聊天语音识别 (补全功能) =================
 
 function startChatVoice() {
