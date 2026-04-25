@@ -2,86 +2,19 @@
  * AI 英语私教 - 终极功能整合版
  * 包含：基础控制、单词练习、拼写测验、1247看板、AI故事、记忆宫殿、文章听写、AI对话
  */
+// ================= [0] 配置区 =================
+const SB_URL = 'https://bhilewmilbhxowxwwyfq.supabase.co'; // 已修正 URL
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoaWxld21pbGJoeG93eHd3eWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTYyNTUsImV4cCI6MjA5MjUzMjI1NX0._Kj-4i2KTU7LO07AwNkKAta-0qluh4BygU_OMwAKc6o'; 
 
-// ================= [0] 初始化 Supabase  =================// 1. (填入你第一步获取
-const supabaseUrl = 'https://bhilewmilbhxowxwwyfq.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoaWxld21pbGJoeG93eHd3eWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTYyNTUsImV4cCI6MjA5MjUzMjI1NX0._Kj-4i2KTU7LO07AwNkKAta-0qluh4BygU_OMwAKc6o';
-const supabase = supabase.createClient(supabaseUrl, supabaseKey);
-
-// 2. 监听登录状态
-supabase.auth.onAuthStateChange((event, session) => {
-    if (session) {
-        document.getElementById('authSection').style.display = 'none';
-        document.getElementById('userSection').style.display = 'block';
-        document.getElementById('userEmailDisplay').innerText = "已登录: " + session.user.email;
-        pullFromCloud(); // 登录后自动下载云端进度
-    } else {
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('userSection').style.display = 'none';
+let supabaseClient = null;
+try {
+    if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SB_URL, SB_KEY);
+        console.log("✅ Supabase 客户端已就绪");
     }
-});
-
-// 3. 登录逻辑 (无密码登录)
-async function handleLogin() {
-    const email = document.getElementById('syncEmail').value;
-    const { error } = await supabase.auth.signInWithOtp({ email });
-    if (error) alert(error.message);
-    else alert("验证邮件已发送！请在手机/电脑上点击邮件链接完成登录。");
-}
-
-// 4. 将本地数据推送到云端 (无感同步的核心)
-async function pushToCloud() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const progressData = {
-        eng_study_history: localStorage.getItem('eng_study_history'),
-        selected_book_path: localStorage.getItem('selected_book_path'),
-        silicon_api_key: localStorage.getItem('silicon_api_key')
-    };
-
-    const { error } = await supabase
-        .from('user_progress')
-        .upsert({ id: user.id, data: progressData, updated_at: new Date() });
-    
-    if (!error) console.log("云端同步成功");
-}
-
-// 5. 从云端拉取数据并覆盖本地
-async function pullFromCloud() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data, error } = await supabase
-        .from('user_progress')
-        .select('data')
-        .single();
-
-    if (data && data.data) {
-        const cloudData = data.data;
-        let changed = false;
-        for (let key in cloudData) {
-            if (cloudData[key] && localStorage.getItem(key) !== cloudData[key]) {
-                localStorage.setItem(key, cloudData[key]);
-                changed = true;
-            }
-        }
-        if (changed) {
-            console.log("本地已更新为云端进度");
-            // 只有当历史记录发生变化时才刷新界面，避免死循环
-            updateDailyDashboard(); 
-        }
-    }
-}
-
-// 6. 退出登录
-async function handleLogout() {
-    await supabase.auth.signOut();
-    location.reload();
-}
+} catch (e) { console.error("Supabase 初始化失败:", e); }
 
 // ================= [1] 全局变量 =================
-let activeUtterance = null;
 let wordList = [];
 let currentWordIndex = 0;
 let articleList = [];
@@ -91,6 +24,11 @@ let currentSentenceIdx = 0;
 let sentenceReplayTimer = null;
 let currentChatMode = 'eng';
 let chatHistory = [];
+let translationTasks = [];
+let copySentenceQueue = [];
+let currentCopyCount = 0;
+let artChallengeData = [];
+
 // 获取上次选择的课本，如果没有则用默认
 let currentBookPath = localStorage.getItem('selected_book_path') || 'default';
 
@@ -101,8 +39,28 @@ window.onload = function() {
     document.getElementById('bookSelect').value = currentBookPath;
 };
 
+
+
+
+
 // ================= [2] 初始化与数据加载 =================
 window.onload = function() {
+    console.log("🚀 程序开始加载...");
+    
+    if (supabaseClient) {
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            const authSection = document.getElementById('authSection');
+            const userSection = document.getElementById('userSection');
+            if (session) {
+                if(authSection) authSection.style.display = 'none';
+                if(userSection) userSection.style.display = 'block';
+                document.getElementById('userEmailDisplay').innerText = "已登录: " + session.user.email;
+                pullFromCloud(); 
+            }
+        });
+    }
+
+
     loadAllData();
     const savedKey = localStorage.getItem('silicon_api_key');
     if (savedKey) {
@@ -115,6 +73,7 @@ window.onload = function() {
     switchChatMode('eng');
     updateDailyDashboard();
     // 实时更新看板状态
+    setInterval(updateDailyDashboard, 10000);
     setInterval(() => {
         const val = document.getElementById('groupSelect').value;
         const gNum = val === 'all' ? '全' : parseInt(val) + 1;
