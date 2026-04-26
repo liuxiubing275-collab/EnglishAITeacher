@@ -995,27 +995,19 @@ async function handleLogin() {
     return;
   }
 
-  // ✅ 修复：使用正确的 id="syncEmail"
   const emailInput = document.getElementById('syncEmail');
   const email = emailInput?.value.trim();
 
-  console.log("🔐 登录调试:", { 
-    foundInput: !!emailInput, 
-    emailValue: email
-  });
-
   if (!email) {
-    alert("📧 请输入邮箱地址\n\n💡 例如：106484337@qq.com");
+    alert("📧 请输入邮箱地址");
     return;
   }
 
-  // 邮箱格式校验
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     alert("⚠️ 请输入有效的邮箱地址");
     return;
   }
 
-  // UI 反馈：禁用按钮防止重复点击
   const btn = document.querySelector('button[onclick="handleLogin()"]');
   const originalText = btn ? btn.innerText : "发送登录链接";
   
@@ -1025,33 +1017,54 @@ async function handleLogin() {
   }
 
   try {
-    // 🪄 发送魔法链接（核心代码）
-    const { error } = await supabaseClient.auth.signInWithOtp({
+    // 🎯 关键修复：使用标准化的 redirect URL
+    const redirectUrl = window.location.origin + window.location.pathname;
+    
+    console.log("🔐 登录调试:", {
       email: email,
-      options: {
-        emailRedirectTo: window.location.href
+      redirectUrl: redirectUrl,
+      location: {
+        origin: window.location.origin,
+        pathname: window.location.pathname,
+        href: window.location.href
       }
     });
 
-    if (error) throw error;
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email: email,
+      options: {
+        emailRedirectTo: redirectUrl  // ✅ 使用标准化 URL
+      }
+    });
 
-    // ✅ 成功提示
+    if (error) {
+      if (error.status === 406) {
+        throw new Error("重定向地址未被允许。请在 Supabase 后台 Authentication → URL Configuration 中添加:\n" + redirectUrl);
+      }
+      throw error;
+    }
+
     alert(`🎉 登录链接已发送至 ${email}\n\n1️⃣ 请查收邮件（检查垃圾邮箱）\n2️⃣ 点击邮件中的「确认登录」链接\n3️⃣ 页面将自动跳转并同步你的学习进度`);
     
-    // 保存邮箱到本地，方便下次使用
     localStorage.setItem('last_login_email', email);
 
   } catch (err) {
     console.error("🔐 登录失败:", err);
-    alert(`❌ 发送失败：${err.message}\n\n请检查：\n• 网络连接\n• Supabase 后台 Redirect URLs 配置\n• 邮箱是否已注册`);
+    
+    // 🎯 针对 406 错误的友好提示
+    if (err.message?.includes('406') || err.message?.includes('重定向')) {
+      alert(`❌ 406 错误：重定向地址未被允许\n\n✅ 解决方法：\n1. 打开 Supabase 后台 → Authentication → URL Configuration\n2. 在 "Redirect URLs" 中添加:\n${window.location.origin + window.location.pathname}*\n3. 保存后刷新页面重试`);
+    } else {
+      alert(`❌ 发送失败：${err.message}\n\n请检查网络连接或稍后重试。`);
+    }
   } finally {
-    // 恢复按钮状态
     if (btn) {
       btn.disabled = false;
       btn.innerText = originalText;
     }
   }
 }
+
 /**
  * 处理退出登录
  */
