@@ -987,15 +987,36 @@ function resetArtChallenge() {
 // 📖 [12] 账号登录/退出逻辑 (已补全)
 // ================= [1] 登录与登出 =================
 
-// 登录：发送魔术链接邮件
-async function handleLogin(email) {
-  if (!email) return alert("请输入邮箱");
-  const { error } = await supabaseClient.auth.signInWithOtp({
-    email: email,
-    options: { emailRedirectTo: window.location.origin }
-  });
-  if (error) alert("发送失败: " + error.message);
-  else alert("同步链接已发至邮箱，点击邮件内链接即可自动同步进度！");
+async function handleLogin() {
+    // 1. 获取输入框元素
+    const emailInput = document.getElementById('user-email');
+    const email = emailInput ? emailInput.value.trim() : "";
+
+    // 2. 检查邮箱是否为空
+    if (!email) {
+        alert("请输入邮箱后再点击登录");
+        return;
+    }
+
+    try {
+        console.log("正在尝试发送邮件至:", email);
+        const { error } = await supabaseClient.auth.signInWithOtp({
+            email: email,
+            options: {
+                // 点击邮件链接后跳回的地址
+                emailRedirectTo: window.location.href 
+            }
+        });
+
+        if (error) {
+            throw error;
+        } else {
+            alert("✅ 验证邮件已发送！\n请前往邮箱 [" + email + "] 点击链接完成同步。");
+        }
+    } catch (error) {
+        console.error("登录出错:", error.message);
+        alert("发送失败: " + error.message);
+    }
 }
 
 // 登出：清除云端会话并重置本地
