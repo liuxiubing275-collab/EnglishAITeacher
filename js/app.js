@@ -10,6 +10,7 @@ try {
   if (window.supabase) {
     supabaseClient = window.supabase.createClient(SB_URL, SB_KEY);
     console.log("✅ Supabase 客户端已就绪");
+    initAuthListener();
   }
 } catch (e) { console.error("Supabase 初始化失败:", e); }
 
@@ -984,29 +985,73 @@ function resetArtChallenge() {
 }
 
 // 📖 [12] 账号登录/退出逻辑 (已补全)
-async function handleLogin() {
-  if (!supabaseClient) return alert("❌ 云端服务未连接，请刷新页面");
-  const email = document.getElementById('loginEmail')?.value.trim();
-  const password = document.getElementById('loginPassword')?.value.trim();
-  if (!email || !password) return alert("请输入邮箱和密码");
+// ================= [1] 登录与登出 =================
 
-  const btn = document.querySelector('button[onclick="handleLogin()"]');
-  if (btn) { btn.disabled = true; btn.innerText = "⏳ 登录中..."; }
+// 登录：发送魔术链接邮件
+async function handleLogin(email) {
+  if (!email) return alert("请输入邮箱");
+  const { error } = await supabaseClient.auth.signInWithOtp({
+    email: email,
+    options: { emailRedirectTo: window.location.origin }
+  });
+  if (error) alert("发送失败: " + error.message);
+  else alert("同步链接已发至邮箱，点击邮件内链接即可自动同步进度！");
+}
 
-  try {
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    console.log("✅ 登录成功，正在同步进度...");
-  } catch (err) {
-    alert("❌ 登录失败: " + (err.message || "网络或账号异常"));
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerText = "登录"; }
+// 登出：清除云端会话并重置本地
+async function handleLogout() {
+  await supabaseClient.auth.signOut();
+  // 退出后建议清除本地缓存，防止他人查看
+  localStorage.removeItem('local_data_1247'); 
+  alert("已退出登录");
+  window.location.reload();
+}
+
+// ================= [2] 无感同步引擎 =================
+
+// 监听状态：用户点击邮件链接进入 App 时会自动触发 SIGNED_IN
+function initAuthListener() {
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      console.log("检测到登录，正在从云端瞬间恢复进度...");
+      await syncCloudToLocal(session.user.id);
+    }
+  });
+}
+
+// 【下载】从云端 user_progress 表拉取数据到本地
+async function syncCloudToLocal(userId) {
+  const { data, error } = await supabaseClient
+    .from('user_progress')
+    .select('data')
+    .eq('id', userId)
+    .single();
+
+  if (data && data.data) {
+    // 将云端的 JSON 对象保存到本地
+    localStorage.setItem('local_data_1247', JSON.stringify(data.data));
+    
+    // 这里触发你 UI 的刷新逻辑
+    console.log("✅ 进度与 API Key 已恢复:", data.data);
+    // 例如：renderProgress(data.data.progress1247);
   }
 }
 
-async function handleLogout() {
-  if (!supabaseClient) return;
-  const { error } = await supabaseClient.auth.signOut();
-  if (error) alert("退出失败: " + error.message);
-  else alert("已退出登录，页面将自动刷新...");
+// 【上传】当你的 1247 进度或 API Key 变化时调用此函数备份到云端
+async function syncLocalToCloud() {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) return; // 未登录则不上传
+
+  // 假设你的本地数据存放在这个对象里
+  const currentLocalData = JSON.parse(localStorage.getItem('local_data_1247') || '{}');
+
+  const { error } = await supabaseClient
+    .from('user_progress')
+    .upsert({
+      id: user.id,
+      data: currentLocalData, // 包含进度和 API Key 的 JSON 对象
+      updated_at: new Date().toISOString()
+    });
+
+  if (!error) console.log("☁️ 进度已实时同步至云端");
 }
