@@ -982,3 +982,31 @@ function resetArtChallenge() {
   document.getElementById('artChallengeSetup').style.display = 'block';
   document.getElementById('artChallengeResult').style.display = 'none';
 }
+
+// 📖 [12] 账号登录/退出逻辑 (已补全)
+async function handleLogin() {
+  if (!supabaseClient) return alert("❌ 云端服务未连接，请刷新页面");
+  const email = document.getElementById('loginEmail')?.value.trim();
+  const password = document.getElementById('loginPassword')?.value.trim();
+  if (!email || !password) return alert("请输入邮箱和密码");
+
+  const btn = document.querySelector('button[onclick="handleLogin()"]');
+  if (btn) { btn.disabled = true; btn.innerText = "⏳ 登录中..."; }
+
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    console.log("✅ 登录成功，正在同步进度...");
+  } catch (err) {
+    alert("❌ 登录失败: " + (err.message || "网络或账号异常"));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = "登录"; }
+  }
+}
+
+async function handleLogout() {
+  if (!supabaseClient) return;
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) alert("退出失败: " + error.message);
+  else alert("已退出登录，页面将自动刷新...");
+}
