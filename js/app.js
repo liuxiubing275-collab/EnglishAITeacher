@@ -984,95 +984,81 @@ function resetArtChallenge() {
   document.getElementById('artChallengeResult').style.display = 'none';
 }
 
-// 📖 [12] 账号登录/退出逻辑 (已补全)
-// ================= [1] 登录与登出 =================
-
+// ================= [10] 账号登录逻辑 (魔法链接) =================
 async function handleLogin() {
-    // 1. 获取输入框元素
-    const emailInput = document.getElementById('user-email');
-    const email = emailInput ? emailInput.value.trim() : "";
+  if (!supabaseClient) {
+    alert("❌ 云端服务未连接，请刷新页面重试");
+    return;
+  }
 
-    // 2. 检查邮箱是否为空
-    if (!email) {
-        alert("请输入邮箱后再点击登录");
-        return;
-    }
+  const emailInput = document.querySelector('input[type="email"]');
+  const email = emailInput?.value.trim();
 
-    try {
-        console.log("正在尝试发送邮件至:", email);
-        const { error } = await supabaseClient.auth.signInWithOtp({
-            email: email,
-            options: {
-                // 点击邮件链接后跳回的地址
-                emailRedirectTo: window.location.href 
-            }
-        });
+  if (!email) {
+    alert("请输入邮箱地址");
+    return;
+  }
 
-        if (error) {
-            throw error;
-        } else {
-            alert("✅ 验证邮件已发送！\n请前往邮箱 [" + email + "] 点击链接完成同步。");
-        }
-    } catch (error) {
-        console.error("登录出错:", error.message);
-        alert("发送失败: " + error.message);
-    }
-}
+  if (!isValidEmail(email)) {
+    alert("请输入有效的邮箱地址");
+    return;
+  }
 
-// 登出：清除云端会话并重置本地
-async function handleLogout() {
-  await supabaseClient.auth.signOut();
-  // 退出后建议清除本地缓存，防止他人查看
-  localStorage.removeItem('local_data_1247'); 
-  alert("已退出登录");
-  window.location.reload();
-}
+  const btn = document.querySelector('button[onclick="handleLogin()"]');
+  const originalText = btn ? btn.innerText : "发送登录链接到邮箱";
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "⏳ 发送中...";
+  }
 
-// ================= [2] 无感同步引擎 =================
+  try {
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email: email,
+      options: {
+        emailRedirectTo: window.location.href // 登录后跳转回当前页面
+      }
+    });
 
-// 监听状态：用户点击邮件链接进入 App 时会自动触发 SIGNED_IN
-function initAuthListener() {
-  supabaseClient.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session) {
-      console.log("检测到登录，正在从云端瞬间恢复进度...");
-      await syncCloudToLocal(session.user.id);
-    }
-  });
-}
+    if (error) throw error;
 
-// 【下载】从云端 user_progress 表拉取数据到本地
-async function syncCloudToLocal(userId) {
-  const { data, error } = await supabaseClient
-    .from('user_progress')
-    .select('data')
-    .eq('id', userId)
-    .single();
-
-  if (data && data.data) {
-    // 将云端的 JSON 对象保存到本地
-    localStorage.setItem('local_data_1247', JSON.stringify(data.data));
+    alert(`✅ 登录链接已发送至 ${email}\n\n请查收邮件并点击链接完成登录。\n\n登录后系统将自动同步你的学习进度到云端。`);
     
-    // 这里触发你 UI 的刷新逻辑
-    console.log("✅ 进度与 API Key 已恢复:", data.data);
-    // 例如：renderProgress(data.data.progress1247);
+    // 保存邮箱到本地，方便下次使用
+    localStorage.setItem('last_login_email', email);
+    if (emailInput) emailInput.value = email;
+
+  } catch (err) {
+    console.error("登录失败:", err);
+    alert(`❌ 发送失败：${err.message}\n\n请检查网络连接或稍后重试。`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
   }
 }
 
-// 【上传】当你的 1247 进度或 API Key 变化时调用此函数备份到云端
-async function syncLocalToCloud() {
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) return; // 未登录则不上传
-
-  // 假设你的本地数据存放在这个对象里
-  const currentLocalData = JSON.parse(localStorage.getItem('local_data_1247') || '{}');
-
-  const { error } = await supabaseClient
-    .from('user_progress')
-    .upsert({
-      id: user.id,
-      data: currentLocalData, // 包含进度和 API Key 的 JSON 对象
-      updated_at: new Date().toISOString()
-    });
-
-  if (!error) console.log("☁️ 进度已实时同步至云端");
+// 邮箱格式验证
+function isValidEmail(email) {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email);
 }
+
+// 页面加载时恢复上次登录的邮箱
+function restoreLastLoginEmail() {
+  const lastEmail = localStorage.getItem('last_login_email');
+  if (lastEmail) {
+    const emailInput = document.querySelector('input[type="email"]');
+    if (emailInput) {
+      emailInput.value = lastEmail;
+    }
+  }
+}
+
+// 在 window.onload 中调用恢复函数
+const originalOnload2 = window.onload;
+window.onload = function() {
+  if (originalOnload2) originalOnload2();
+  restoreLastLoginEmail();
+};
