@@ -436,26 +436,64 @@ async function pushToCloud() {
 }
 
 async function pullFromCloud() {
-  if (!supabaseClient) return;
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) return;
-  const { data, error } = await supabaseClient.from('user_progress').select('data').eq('id', user.id).single();
-  if (error && error.code !== 'PGRST116') { console.error('☁️ 拉取失败:', error); return; }
+  if (!supabaseClient) {
+    console.warn("⚠️ Supabase 未初始化");
+    return;
+  }
+  
+  const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+  if (userError || !user) {
+    console.error("❌ 获取用户失败:", userError);
+    return;
+  }
+  
+  console.log("🔄 开始从云端拉取数据...");
+  
+  const { data, error } = await supabaseClient
+    .from('user_progress')
+    .select('data')
+    .eq('id', user.id)  // ✅ 关键修复：添加用户 ID 过滤
+    .single();
+  
+  if (error) {
+    if (error.code === 'PGRST116') {
+      console.log("ℹ️ 云端暂无记录（首次登录正常）");
+    } else {
+      console.error("❌ 拉取失败:", error);
+    }
+    return;
+  }
+  
   if (data && data.data) {
+    console.log("✅ 云端数据:", data.data);
+    
     let changed = false;
-    const cloud = data.data;
-    for (const key in cloud) {
-      if (cloud[key] !== null && cloud[key] !== undefined) {
-        if (localStorage.getItem(key) !== cloud[key]) {
-          localStorage.setItem(key, cloud[key]);
-          changed = true;
+    const cloudData = data.data;
+    
+    for (const key in cloudData) {
+      if (cloudData.hasOwnProperty(key)) {
+        const localValue = localStorage.getItem(key);
+        const cloudValue = cloudData[key];
+        
+        if (cloudValue !== null && cloudValue !== undefined) {
+          if (localValue !== cloudValue) {
+            console.log(`📥 同步 ${key}:`, { 本地: localValue?.substring(0, 50), 云端: cloudValue?.substring(0, 50) });
+            localStorage.setItem(key, cloudValue);
+            changed = true;
+          }
         }
       }
     }
+    
     if (changed) {
-      console.log('✅ 已从云端拉取最新进度，自动刷新中...');
-      updateDailyDashboard();
-      setTimeout(() => loadAllData(), 300);
+      console.log("🎉 数据已更新，刷新界面...");
+      setTimeout(() => {
+        updateDailyDashboard();
+        loadAllData();
+        alert("✅ 已从云端同步最新进度！");
+      }, 300);
+    } else {
+      console.log("ℹ️ 本地数据已是最新");
     }
   }
 }
@@ -1094,33 +1132,34 @@ function initAuthListener() {
   }
 
   // 2. 监听认证状态变化（登录/退出自动触发）
-  if (supabaseClient) {
-    supabaseClient.auth.onAuthStateChange(async (event, session) => {
-      const authSection = document.getElementById('authSection');
-      const userSection = document.getElementById('userSection');
-      const emailDisplay = document.getElementById('userEmailDisplay');
-
-      if (event === 'SIGNED_IN' && session) {
-        // ✅ 登录成功：隐藏登录框，显示用户区
-        if (authSection) authSection.style.display = 'none';
-        if (userSection) userSection.style.display = 'block';
-        if (emailDisplay) emailDisplay.innerText = "👤 " + session.user.email;
-        
-        console.log("✅ 登录成功，正在同步云端进度...");
-        
-        // 🔄 关键：延迟 500ms 确保 localStorage 就绪后拉取云端数据
-        setTimeout(async () => {
-          await pullFromCloud();
-          updateDailyDashboard();
-          loadAllData(); // 重载数据确保最新
-        }, 500);
-        
-      } else if (event === 'SIGNED_OUT') {
-        // 👋 退出登录：恢复登录界面
-        if (authSection) authSection.style.display = 'block';
-        if (userSection) userSection.style.display = 'none';
-        console.log("👋 用户已退出");
+if (supabaseClient) {
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    console.log("🔐 认证状态变化:", event);
+    
+    const authSection = document.getElementById('authSection');
+    const userSection = document.getElementById('userSection');
+    const emailDisplay = document.getElementById('userEmailDisplay');
+    
+    if (event === 'SIGNED_IN' && session) {
+      console.log("✅ 用户已登录:", session.user.email);
+      
+      if (authSection) authSection.style.display = 'none';
+      if (userSection) {
+        userSection.style.display = 'block';
+        if (emailDisplay) {
+          emailDisplay.innerText = "已登录: " + session.user.email;
+        }
       }
-    });
-  }
+      
+      console.log("⏳ 1 秒后开始同步云端数据...");
+      setTimeout(async () => {
+        await pullFromCloud();
+      }, 1000);
+      
+    } else if (event === 'SIGNED_OUT') {
+      console.log("👋 用户已退出");
+      if (authSection) authSection.style.display = 'block';
+      if (userSection) userSection.style.display = 'none';
+    }
+  });
 }
