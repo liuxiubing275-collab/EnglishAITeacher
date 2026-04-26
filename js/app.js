@@ -984,54 +984,65 @@ function resetArtChallenge() {
   document.getElementById('artChallengeResult').style.display = 'none';
 }
 
-// ================= [10] 账号登录逻辑 (魔法链接) =================
+// ================= [10] 账号登录逻辑 (魔法链接 + 云端同步) =================
+
+/**
+ * 处理邮箱登录：发送魔法链接，用户点击后自动登录并同步数据
+ */
 async function handleLogin() {
   if (!supabaseClient) {
     alert("❌ 云端服务未连接，请刷新页面重试");
     return;
   }
 
-  const emailInput = document.querySelector('input[type="email"]');
+  // 获取邮箱输入框（兼容多种可能的 id/name）
+  const emailInput = document.querySelector('input[type="email"]') || 
+                     document.getElementById('loginEmail');
   const email = emailInput?.value.trim();
 
   if (!email) {
-    alert("请输入邮箱地址");
+    alert("📧 请输入邮箱地址");
     return;
   }
 
-  if (!isValidEmail(email)) {
-    alert("请输入有效的邮箱地址");
+  // 邮箱格式校验
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert("⚠️ 请输入有效的邮箱地址");
     return;
   }
 
+  // UI 反馈：禁用按钮防止重复点击
   const btn = document.querySelector('button[onclick="handleLogin()"]');
-  const originalText = btn ? btn.innerText : "发送登录链接到邮箱";
-  
+  const originalText = btn ? btn.innerText : "发送登录链接";
   if (btn) {
     btn.disabled = true;
     btn.innerText = "⏳ 发送中...";
   }
 
   try {
+    // 🪄 发送魔法链接（核心代码）
     const { error } = await supabaseClient.auth.signInWithOtp({
       email: email,
       options: {
-        emailRedirectTo: window.location.href // 登录后跳转回当前页面
+        // 登录后跳回当前页面，保留所有参数
+        emailRedirectTo: window.location.href
       }
     });
 
     if (error) throw error;
 
-    alert(`✅ 登录链接已发送至 ${email}\n\n请查收邮件并点击链接完成登录。\n\n登录后系统将自动同步你的学习进度到云端。`);
+    // ✅ 成功提示
+    alert(`🎉 登录链接已发送至 ${email}\n\n1️⃣ 请查收邮件（检查垃圾邮箱）\n2️⃣ 点击邮件中的「确认登录」链接\n3️⃣ 页面将自动跳转并同步你的学习进度`);
     
     // 保存邮箱到本地，方便下次使用
     localStorage.setItem('last_login_email', email);
     if (emailInput) emailInput.value = email;
 
   } catch (err) {
-    console.error("登录失败:", err);
-    alert(`❌ 发送失败：${err.message}\n\n请检查网络连接或稍后重试。`);
+    console.error("🔐 登录失败:", err);
+    alert(`❌ 发送失败：${err.message}\n\n请检查：\n• 网络连接\n• Supabase 后台 Redirect URLs 配置\n• 邮箱是否已注册`);
   } finally {
+    // 恢复按钮状态
     if (btn) {
       btn.disabled = false;
       btn.innerText = originalText;
@@ -1039,26 +1050,69 @@ async function handleLogin() {
   }
 }
 
-// 邮箱格式验证
-function isValidEmail(email) {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(email);
-}
-
-// 页面加载时恢复上次登录的邮箱
-function restoreLastLoginEmail() {
-  const lastEmail = localStorage.getItem('last_login_email');
-  if (lastEmail) {
-    const emailInput = document.querySelector('input[type="email"]');
-    if (emailInput) {
-      emailInput.value = lastEmail;
-    }
+/**
+ * 处理退出登录
+ */
+async function handleLogout() {
+  if (!supabaseClient) return;
+  
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    alert("退出失败: " + error.message);
+  } else {
+    alert("👋 已退出登录");
+    // 可选：刷新页面恢复初始状态
+    // window.location.reload();
   }
 }
 
-// 在 window.onload 中调用恢复函数
-const originalOnload2 = window.onload;
+/**
+ * 页面加载时：恢复上次登录的邮箱 + 监听登录状态变化
+ */
+function initAuthListener() {
+  // 1. 恢复上次输入的邮箱
+  const lastEmail = localStorage.getItem('last_login_email');
+  if (lastEmail) {
+    const emailInput = document.querySelector('input[type="email"]') || 
+                       document.getElementById('loginEmail');
+    if (emailInput) emailInput.value = lastEmail;
+  }
+
+  // 2. 监听认证状态变化（登录/退出自动触发）
+  if (supabaseClient) {
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      const authSection = document.getElementById('authSection');
+      const userSection = document.getElementById('userSection');
+      const emailDisplay = document.getElementById('userEmailDisplay');
+
+      if (event === 'SIGNED_IN' && session) {
+        // ✅ 登录成功：隐藏登录框，显示用户区
+        if (authSection) authSection.style.display = 'none';
+        if (userSection) userSection.style.display = 'block';
+        if (emailDisplay) emailDisplay.innerText = "👤 " + session.user.email;
+        
+        console.log("✅ 登录成功，正在同步云端进度...");
+        
+        // 🔄 关键：延迟 500ms 确保 localStorage 就绪后拉取云端数据
+        setTimeout(async () => {
+          await pullFromCloud();
+          updateDailyDashboard();
+          loadAllData(); // 重载数据确保最新
+        }, 500);
+        
+      } else if (event === 'SIGNED_OUT') {
+        // 👋 退出登录：恢复登录界面
+        if (authSection) authSection.style.display = 'block';
+        if (userSection) userSection.style.display = 'none';
+        console.log("👋 用户已退出");
+      }
+    });
+  }
+}
+
+// 在 window.onload 中初始化监听器
+const originalOnloadAuth = window.onload;
 window.onload = function() {
-  if (originalOnload2) originalOnload2();
-  restoreLastLoginEmail();
+  if (originalOnloadAuth) originalOnloadAuth();
+  initAuthListener(); // 🎯 关键：初始化认证监听
 };
