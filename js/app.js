@@ -995,13 +995,17 @@ async function handleLogin() {
     return;
   }
 
-  // 获取邮箱输入框（兼容多种可能的 id/name）
-  const emailInput = document.querySelector('input[type="email"]') || 
-                     document.getElementById('loginEmail');
+  // ✅ 修复：使用正确的 id="syncEmail"
+  const emailInput = document.getElementById('syncEmail');
   const email = emailInput?.value.trim();
 
+  console.log("🔐 登录调试:", { 
+    foundInput: !!emailInput, 
+    emailValue: email
+  });
+
   if (!email) {
-    alert("📧 请输入邮箱地址");
+    alert("📧 请输入邮箱地址\n\n💡 例如：106484337@qq.com");
     return;
   }
 
@@ -1014,6 +1018,7 @@ async function handleLogin() {
   // UI 反馈：禁用按钮防止重复点击
   const btn = document.querySelector('button[onclick="handleLogin()"]');
   const originalText = btn ? btn.innerText : "发送登录链接";
+  
   if (btn) {
     btn.disabled = true;
     btn.innerText = "⏳ 发送中...";
@@ -1024,7 +1029,6 @@ async function handleLogin() {
     const { error } = await supabaseClient.auth.signInWithOtp({
       email: email,
       options: {
-        // 登录后跳回当前页面，保留所有参数
         emailRedirectTo: window.location.href
       }
     });
@@ -1036,7 +1040,6 @@ async function handleLogin() {
     
     // 保存邮箱到本地，方便下次使用
     localStorage.setItem('last_login_email', email);
-    if (emailInput) emailInput.value = email;
 
   } catch (err) {
     console.error("🔐 登录失败:", err);
@@ -1049,7 +1052,6 @@ async function handleLogin() {
     }
   }
 }
-
 /**
  * 处理退出登录
  */
@@ -1109,10 +1111,3 @@ function initAuthListener() {
     });
   }
 }
-
-// 在 window.onload 中初始化监听器
-const originalOnloadAuth = window.onload;
-window.onload = function() {
-  if (originalOnloadAuth) originalOnloadAuth();
-  initAuthListener(); // 🎯 关键：初始化认证监听
-};
