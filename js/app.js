@@ -30,10 +30,7 @@ let mistakeReviewList = [];
 let mistakeReviewIdx = 0;
 let currentBookPath = localStorage.getItem('selected_book_path') || 'default';
 
-const originalOnload = window.onload;
 
-
-// ================= [2] 初始化与数据加载 =================
 // ================= [2] 统一初始化入口 =================
 const originalOnload = window.onload;
 window.onload = function() {
