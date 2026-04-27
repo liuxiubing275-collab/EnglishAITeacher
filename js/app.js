@@ -30,64 +30,71 @@ let mistakeReviewList = [];
 let mistakeReviewIdx = 0;
 let currentBookPath = localStorage.getItem('selected_book_path') || 'default';
 
-
-// ================= [2] 统一初始化入口 =================
-const originalOnload = window.onload;
-window.onload = function() {
+// ================= [2] 统一初始化入口（唯一） =================
+(function initApp() {
   // 1. 保留其他脚本可能绑定的 onload
-  if (originalOnload) originalOnload();
+  const originalOnload = window.onload;
   
-  console.log("🚀 程序开始加载...");
-  
-  // 2. 恢复上次选择的课本
-  document.getElementById('bookSelect').value = currentBookPath;
+  window.onload = function() {
+    if (originalOnload) originalOnload();
+    
+    console.log("🚀 程序开始加载...");
+    
+    // 2. 恢复上次选择的课本
+    const bookSel = document.getElementById('bookSelect');
+    if(bookSel) bookSel.value = currentBookPath;
 
-  // 3. Supabase 鉴权监听
-  if (supabaseClient) {
-    supabaseClient.auth.onAuthStateChange((event, session) => {
-      const authSection = document.getElementById('authSection');
-      const userSection = document.getElementById('userSection');
-      if (session) {
-        if(authSection) authSection.style.display = 'none';
-        if(userSection) userSection.style.display = 'block';
-        const emailEl = document.getElementById('userEmailDisplay');
-        if(emailEl) emailEl.innerText = "已登录: " + session.user.email;
-        setTimeout(pullFromCloud, 500);
-      } else {
-        if(authSection) authSection.style.display = 'block';
-        if(userSection) userSection.style.display = 'none';
-      }
-    });
-  }
+    // 3. Supabase 鉴权监听
+    if (supabaseClient) {
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        const authSection = document.getElementById('authSection');
+        const userSection = document.getElementById('userSection');
+        if (session) {
+          if(authSection) authSection.style.display = 'none';
+          if(userSection) userSection.style.display = 'block';
+          const emailEl = document.getElementById('userEmailDisplay');
+          if(emailEl) emailEl.innerText = "已登录: " + session.user.email;
+          setTimeout(pullFromCloud, 500);
+        } else {
+          if(authSection) authSection.style.display = 'block';
+          if(userSection) userSection.style.display = 'none';
+        }
+      });
+    }
 
-  // 4. 加载核心数据
-  loadAllData();
-  
-  // 5. 恢复 API Key 设置
-  const savedKey = localStorage.getItem('silicon_api_key');
-  if (savedKey) {
-    const keyInput = document.getElementById('siliconApiKey');
-    const keyStatus = document.getElementById('apiKeyStatus');
-    const settingsCard = document.getElementById('settingsCard');
-    if(keyInput) keyInput.value = savedKey;
-    if(keyStatus) { keyStatus.innerText = "✅ API Key 已读取"; keyStatus.style.color = "#27ae60"; }
-    if(settingsCard) settingsCard.style.display = 'none';
-  }
+    // 4. 加载核心数据
+    loadAllData();
+    
+    // 5. 恢复 API Key 设置
+    const savedKey = localStorage.getItem('silicon_api_key');
+    if (savedKey) {
+      const keyInput = document.getElementById('siliconApiKey');
+      const keyStatus = document.getElementById('apiKeyStatus');
+      const settingsCard = document.getElementById('settingsCard');
+      if(keyInput) keyInput.value = savedKey;
+      if(keyStatus) { keyStatus.innerText = "✅ API Key 已读取"; keyStatus.style.color = "#27ae60"; }
+      if(settingsCard) settingsCard.style.display = 'none';
+    }
 
-  // 6. 初始化 UI 状态
-  switchTab('words'); 
-  switchChatMode('eng');
-  updateDailyDashboard();
-  
-  // 7. 定时任务
-  setInterval(updateDailyDashboard, 10000);
-  setInterval(() => {
-    const val = document.getElementById('groupSelect')?.value;
-    const gNum = val === 'all' ? '全' : parseInt(val) + 1;
-    const activeSpan = document.getElementById('currentActiveGNum');
-    if(activeSpan) activeSpan.innerText = gNum;
-  }, 500);
-};
+    // 6. 初始化认证监听（恢复上次邮箱 + 状态监听）
+    initAuthListener();
+
+    // 7. 初始化 UI 状态
+    switchTab('words'); 
+    switchChatMode('eng');
+    updateDailyDashboard();
+    
+    // 8. 定时任务
+    setInterval(updateDailyDashboard, 10000);
+    setInterval(() => {
+      const val = document.getElementById('groupSelect')?.value;
+      const gNum = val === 'all' ? '全' : parseInt(val) + 1;
+      const activeSpan = document.getElementById('currentActiveGNum');
+      if(activeSpan) activeSpan.innerText = gNum;
+    }, 500);
+  };
+})();
+
 
 async function loadAllData() {
   let wordPath = 'NewWords.txt';
