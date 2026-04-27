@@ -1,6 +1,6 @@
 /**
-AI 英语私教 - 终极功能整合版 (已修复所有空格断裂/语法错误)
-包含：基础控制、单词练习、拼写测验、1247看板、AI故事、记忆宫殿、文章听写、AI对话、生词本管理、云同步
+AI 英语私教 - 终极功能整合版 (已彻底修复所有语法错误)
+包含：基础控制、单词练习、拼写测验、1247看板、AI故事、记忆宫殿、文章听写、AI对话、生词本管理、云同步、账号鉴权
 */
 // ================= [0] 配置区 =================
 const SB_URL = 'https://bhilewmilbhxowxwwyfq.supabase.co';
@@ -33,7 +33,8 @@ let currentBookPath = localStorage.getItem('selected_book_path') || 'default';
 const originalOnload = window.onload;
 window.onload = function() {
   if (originalOnload) originalOnload();
-  document.getElementById('bookSelect').value = currentBookPath;
+  const bookSel = document.getElementById('bookSelect');
+  if(bookSel) bookSel.value = currentBookPath;
 };
 
 // ================= [2] 初始化与数据加载 =================
@@ -46,8 +47,12 @@ window.onload = function() {
       if (session) {
         if(authSection) authSection.style.display = 'none';
         if(userSection) userSection.style.display = 'block';
-        document.getElementById('userEmailDisplay').innerText = "已登录: " + session.user.email;
+        const emailEl = document.getElementById('userEmailDisplay');
+        if(emailEl) emailEl.innerText = "已登录: " + session.user.email;
         setTimeout(pullFromCloud, 500);
+      } else {
+        if(authSection) authSection.style.display = 'block';
+        if(userSection) userSection.style.display = 'none';
       }
     });
   }
@@ -55,17 +60,19 @@ window.onload = function() {
   loadAllData();
   const savedKey = localStorage.getItem('silicon_api_key');
   if (savedKey) {
-    document.getElementById('siliconApiKey').value = savedKey;
-    document.getElementById('apiKeyStatus').innerText = "✅ API Key 已读取";
-    document.getElementById('apiKeyStatus').style.color = "#27ae60";
-    document.getElementById('settingsCard').style.display = 'none';
+    const keyInput = document.getElementById('siliconApiKey');
+    const keyStatus = document.getElementById('apiKeyStatus');
+    const settingsCard = document.getElementById('settingsCard');
+    if(keyInput) keyInput.value = savedKey;
+    if(keyStatus) { keyStatus.innerText = "✅ API Key 已读取"; keyStatus.style.color = "#27ae60"; }
+    if(settingsCard) settingsCard.style.display = 'none';
   }
   switchTab('words'); 
   switchChatMode('eng');
   updateDailyDashboard();
   setInterval(updateDailyDashboard, 10000);
   setInterval(() => {
-    const val = document.getElementById('groupSelect').value;
+    const val = document.getElementById('groupSelect')?.value;
     const gNum = val === 'all' ? '全' : parseInt(val) + 1;
     const activeSpan = document.getElementById('currentActiveGNum');
     if(activeSpan) activeSpan.innerText = gNum;
@@ -368,7 +375,6 @@ function startMistakeBookReview() {
   document.getElementById('targetWord').style.filter = 'blur(8px)';
   playMistakeWord();
 }
-
 function playMistakeWord() {
   const word = mistakeReviewList[mistakeReviewIdx].en;
   window.speechSynthesis.cancel();
@@ -412,7 +418,7 @@ function quitGroupTest() {
   if (wordEl) wordEl.style.filter = 'none';
 }
 
-// ================= [5] 1247 看板逻辑 =================
+// ================= [5] 1247 看板与云同步 =================
 function getLocalDateString(date) {
   let y = date.getFullYear();
   let m = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -436,64 +442,26 @@ async function pushToCloud() {
 }
 
 async function pullFromCloud() {
-  if (!supabaseClient) {
-    console.warn("⚠️ Supabase 未初始化");
-    return;
-  }
-  
-  const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-  if (userError || !user) {
-    console.error("❌ 获取用户失败:", userError);
-    return;
-  }
-  
-  console.log("🔄 开始从云端拉取数据...");
-  
-  const { data, error } = await supabaseClient
-    .from('user_progress')
-    .select('data')
-    .eq('id', user.id)  // ✅ 关键修复：添加用户 ID 过滤
-    .single();
-  
-  if (error) {
-    if (error.code === 'PGRST116') {
-      console.log("ℹ️ 云端暂无记录（首次登录正常）");
-    } else {
-      console.error("❌ 拉取失败:", error);
-    }
-    return;
-  }
-  
+  if (!supabaseClient) return;
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) return;
+  const { data, error } = await supabaseClient.from('user_progress').select('data').eq('id', user.id).single();
+  if (error && error.code !== 'PGRST116') { console.error('☁️ 拉取失败:', error); return; }
   if (data && data.data) {
-    console.log("✅ 云端数据:", data.data);
-    
     let changed = false;
-    const cloudData = data.data;
-    
-    for (const key in cloudData) {
-      if (cloudData.hasOwnProperty(key)) {
-        const localValue = localStorage.getItem(key);
-        const cloudValue = cloudData[key];
-        
-        if (cloudValue !== null && cloudValue !== undefined) {
-          if (localValue !== cloudValue) {
-            console.log(`📥 同步 ${key}:`, { 本地: localValue?.substring(0, 50), 云端: cloudValue?.substring(0, 50) });
-            localStorage.setItem(key, cloudValue);
-            changed = true;
-          }
+    const cloud = data.data;
+    for (const key in cloud) {
+      if (cloud[key] !== null && cloud[key] !== undefined) {
+        if (localStorage.getItem(key) !== cloud[key]) {
+          localStorage.setItem(key, cloud[key]);
+          changed = true;
         }
       }
     }
-    
     if (changed) {
-      console.log("🎉 数据已更新，刷新界面...");
-      setTimeout(() => {
-        updateDailyDashboard();
-        loadAllData();
-        alert("✅ 已从云端同步最新进度！");
-      }, 300);
-    } else {
-      console.log("ℹ️ 本地数据已是最新");
+      console.log('✅ 已从云端拉取最新进度，自动刷新中...');
+      updateDailyDashboard();
+      setTimeout(() => loadAllData(), 300);
     }
   }
 }
@@ -784,7 +752,7 @@ async function sendChatMessage() {
   } catch(e) { updateChatBubble(loadingId, "Error"); }
 }
 
-// ================= [9] 辅助功能 =================
+// ================= [9] 辅助功能 & 登录/退出 =================
 function switchTab(tabName) {
   document.querySelectorAll('.page-section').forEach(page => { page.classList.remove('active'); page.style.display = 'none'; });
   document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -820,6 +788,99 @@ function startChatVoice() {
   recognition.onresult = function(event) { inputEl.value = event.results[0][0].transcript; inputEl.placeholder = originalPlaceholder; sendChatMessage(); };
   recognition.onerror = function(event) { console.error("语音识别错误:", event.error); inputEl.placeholder = "⚠️ 没听清，请重试..."; setTimeout(() => { inputEl.placeholder = originalPlaceholder; }, 2000); };
   recognition.onend = function() { if (inputEl.placeholder.includes("正在聆听")) inputEl.placeholder = originalPlaceholder; };
+}
+
+// 📖 [10] 账号登录/退出逻辑 (魔法链接 + 云端同步)
+async function handleLogin() {
+  if (!supabaseClient) {
+    alert("❌ 云端服务未连接，请刷新页面重试");
+    return;
+  }
+  const emailInput = document.getElementById('syncEmail');
+  const email = emailInput?.value.trim();
+  if (!email) {
+    alert("📧 请输入邮箱地址");
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert("⚠️ 请输入有效的邮箱地址");
+    return;
+  }
+  const btn = document.querySelector('button[onclick="handleLogin()"]');
+  const originalText = btn ? btn.innerText : "发送登录链接";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "⏳ 发送中...";
+  }
+  try {
+    const redirectUrl = window.location.origin + window.location.pathname;
+    console.log("🔐 登录调试:", { email, redirectUrl });
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email: email,
+      options: { emailRedirectTo: redirectUrl }
+    });
+    if (error) {
+      if (error.status === 406) {
+        throw new Error("重定向地址未被允许。请在 Supabase 后台 Authentication → URL Configuration 中添加:\n" + redirectUrl);
+      }
+      throw error;
+    }
+    alert(`🎉 登录链接已发送至 ${email}\n\n1️⃣ 请查收邮件（检查垃圾邮箱）\n2️⃣ 点击邮件中的「确认登录」链接\n3️⃣ 页面将自动跳转并同步你的学习进度`);
+    localStorage.setItem('last_login_email', email);
+  } catch (err) {
+    console.error("🔐 登录失败:", err);
+    if (err.message?.includes('406') || err.message?.includes('重定向')) {
+      alert(`❌ 406 错误：重定向地址未被允许\n\n✅ 解决方法：\n1. 打开 Supabase 后台 → Authentication → URL Configuration\n2. 在 "Redirect URLs" 中添加:\n${window.location.origin + window.location.pathname}*\n3. 保存后刷新页面重试`);
+    } else {
+      alert(`❌ 发送失败：${err.message}\n\n请检查网络连接或稍后重试。`);
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  }
+}
+
+async function handleLogout() {
+  if (!supabaseClient) return;
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) alert("退出失败: " + error.message);
+  else alert("👋 已退出登录");
+}
+
+function initAuthListener() {
+  const lastEmail = localStorage.getItem('last_login_email');
+  if (lastEmail) {
+    const emailInput = document.getElementById('syncEmail');
+    if (emailInput) emailInput.value = lastEmail;
+  }
+  if (supabaseClient) {
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      console.log("🔐 认证状态变化:", event);
+      const authSection = document.getElementById('authSection');
+      const userSection = document.getElementById('userSection');
+      const emailDisplay = document.getElementById('userEmailDisplay');
+      if (event === 'SIGNED_IN' && session) {
+        console.log("✅ 用户已登录:", session.user.email);
+        if (authSection) authSection.style.display = 'none';
+        if (userSection) {
+          userSection.style.display = 'block';
+          if (emailDisplay) emailDisplay.innerText = "👤 " + session.user.email;
+        }
+        console.log("⏳ 1 秒后开始同步云端数据...");
+        setTimeout(async () => {
+          await pullFromCloud();
+          updateDailyDashboard();
+          loadAllData();
+        }, 1000);
+      } else if (event === 'SIGNED_OUT') {
+        console.log("👋 用户已退出");
+        if (authSection) authSection.style.display = 'block';
+        if (userSection) userSection.style.display = 'none';
+      }
+    });
+  }
 }
 
 // ================= [11] 词成文逻辑 =================
@@ -1000,7 +1061,7 @@ async function gradeArticleChallenge() {
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'Qwen/Qwen2.5-7B-Instruct', messages: [{ role: "system", content: "你是一个精准的英语翻译批改助手。" }, { role: "user", content: prompt + "\n" + checkContent }], temperature: 0.3 })
     });
-    const data = await res.json(); // ✅ 修复了原代码中 response 未定义的致命 Bug
+    const data = await res.json();
     const aiResponse = data.choices[0].message.content; 
     const getFeedback = (tag) => {
       const match = aiResponse.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
@@ -1020,146 +1081,4 @@ async function gradeArticleChallenge() {
 function resetArtChallenge() {
   document.getElementById('artChallengeSetup').style.display = 'block';
   document.getElementById('artChallengeResult').style.display = 'none';
-}
-
-// ================= [10] 账号登录逻辑 (魔法链接 + 云端同步) =================
-
-/**
- * 处理邮箱登录：发送魔法链接，用户点击后自动登录并同步数据
- */
-async function handleLogin() {
-  if (!supabaseClient) {
-    alert("❌ 云端服务未连接，请刷新页面重试");
-    return;
-  }
-
-  const emailInput = document.getElementById('syncEmail');
-  const email = emailInput?.value.trim();
-
-  if (!email) {
-    alert("📧 请输入邮箱地址");
-    return;
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    alert("⚠️ 请输入有效的邮箱地址");
-    return;
-  }
-
-  const btn = document.querySelector('button[onclick="handleLogin()"]');
-  const originalText = btn ? btn.innerText : "发送登录链接";
-  
-  if (btn) {
-    btn.disabled = true;
-    btn.innerText = "⏳ 发送中...";
-  }
-
-  try {
-    // 🎯 关键修复：使用标准化的 redirect URL
-    const redirectUrl = window.location.origin + window.location.pathname;
-    
-    console.log("🔐 登录调试:", {
-      email: email,
-      redirectUrl: redirectUrl,
-      location: {
-        origin: window.location.origin,
-        pathname: window.location.pathname,
-        href: window.location.href
-      }
-    });
-
-    const { error } = await supabaseClient.auth.signInWithOtp({
-      email: email,
-      options: {
-        emailRedirectTo: redirectUrl  // ✅ 使用标准化 URL
-      }
-    });
-
-    if (error) {
-      if (error.status === 406) {
-        throw new Error("重定向地址未被允许。请在 Supabase 后台 Authentication → URL Configuration 中添加:\n" + redirectUrl);
-      }
-      throw error;
-    }
-
-    alert(`🎉 登录链接已发送至 ${email}\n\n1️⃣ 请查收邮件（检查垃圾邮箱）\n2️⃣ 点击邮件中的「确认登录」链接\n3️⃣ 页面将自动跳转并同步你的学习进度`);
-    
-    localStorage.setItem('last_login_email', email);
-
-  } catch (err) {
-    console.error("🔐 登录失败:", err);
-    
-    // 🎯 针对 406 错误的友好提示
-    if (err.message?.includes('406') || err.message?.includes('重定向')) {
-      alert(`❌ 406 错误：重定向地址未被允许\n\n✅ 解决方法：\n1. 打开 Supabase 后台 → Authentication → URL Configuration\n2. 在 "Redirect URLs" 中添加:\n${window.location.origin + window.location.pathname}*\n3. 保存后刷新页面重试`);
-    } else {
-      alert(`❌ 发送失败：${err.message}\n\n请检查网络连接或稍后重试。`);
-    }
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerText = originalText;
-    }
-  }
-}
-
-/**
- * 处理退出登录
- */
-async function handleLogout() {
-  if (!supabaseClient) return;
-  
-  const { error } = await supabaseClient.auth.signOut();
-  if (error) {
-    alert("退出失败: " + error.message);
-  } else {
-    alert("👋 已退出登录");
-    // 可选：刷新页面恢复初始状态
-    // window.location.reload();
-  }
-}
-
-/**
- * 页面加载时：恢复上次登录的邮箱 + 监听登录状态变化
- */
-function initAuthListener() {
-  // 1. 恢复上次输入的邮箱
-  const lastEmail = localStorage.getItem('last_login_email');
-  if (lastEmail) {
-    const emailInput = document.querySelector('input[type="email"]') || 
-                       document.getElementById('loginEmail');
-    if (emailInput) emailInput.value = lastEmail;
-  }
-
-  // 2. 监听认证状态变化（登录/退出自动触发）
-if (supabaseClient) {
-  supabaseClient.auth.onAuthStateChange(async (event, session) => {
-    console.log("🔐 认证状态变化:", event);
-    
-    const authSection = document.getElementById('authSection');
-    const userSection = document.getElementById('userSection');
-    const emailDisplay = document.getElementById('userEmailDisplay');
-    
-    if (event === 'SIGNED_IN' && session) {
-      console.log("✅ 用户已登录:", session.user.email);
-      
-      if (authSection) authSection.style.display = 'none';
-      if (userSection) {
-        userSection.style.display = 'block';
-        if (emailDisplay) {
-          emailDisplay.innerText = "已登录: " + session.user.email;
-        }
-      }
-      
-      console.log("⏳ 1 秒后开始同步云端数据...");
-      setTimeout(async () => {
-        await pullFromCloud();
-      }, 1000);
-      
-    } else if (event === 'SIGNED_OUT') {
-      console.log("👋 用户已退出");
-      if (authSection) authSection.style.display = 'block';
-      if (userSection) userSection.style.display = 'none';
-    }
-  });
 }
