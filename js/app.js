@@ -31,15 +31,21 @@ let mistakeReviewIdx = 0;
 let currentBookPath = localStorage.getItem('selected_book_path') || 'default';
 
 const originalOnload = window.onload;
-window.onload = function() {
-  if (originalOnload) originalOnload();
-  const bookSel = document.getElementById('bookSelect');
-  if(bookSel) bookSel.value = currentBookPath;
-};
+
 
 // ================= [2] 初始化与数据加载 =================
+// ================= [2] 统一初始化入口 =================
+const originalOnload = window.onload;
 window.onload = function() {
+  // 1. 保留其他脚本可能绑定的 onload
+  if (originalOnload) originalOnload();
+  
   console.log("🚀 程序开始加载...");
+  
+  // 2. 恢复上次选择的课本
+  document.getElementById('bookSelect').value = currentBookPath;
+
+  // 3. Supabase 鉴权监听
   if (supabaseClient) {
     supabaseClient.auth.onAuthStateChange((event, session) => {
       const authSection = document.getElementById('authSection');
@@ -57,7 +63,10 @@ window.onload = function() {
     });
   }
 
+  // 4. 加载核心数据
   loadAllData();
+  
+  // 5. 恢复 API Key 设置
   const savedKey = localStorage.getItem('silicon_api_key');
   if (savedKey) {
     const keyInput = document.getElementById('siliconApiKey');
@@ -67,9 +76,13 @@ window.onload = function() {
     if(keyStatus) { keyStatus.innerText = "✅ API Key 已读取"; keyStatus.style.color = "#27ae60"; }
     if(settingsCard) settingsCard.style.display = 'none';
   }
+
+  // 6. 初始化 UI 状态
   switchTab('words'); 
   switchChatMode('eng');
   updateDailyDashboard();
+  
+  // 7. 定时任务
   setInterval(updateDailyDashboard, 10000);
   setInterval(() => {
     const val = document.getElementById('groupSelect')?.value;
@@ -1081,4 +1094,33 @@ async function gradeArticleChallenge() {
 function resetArtChallenge() {
   document.getElementById('artChallengeSetup').style.display = 'block';
   document.getElementById('artChallengeResult').style.display = 'none';
+}
+
+
+
+// =============== [12] 登录回调引导横幅 (放在文件最底部) =================
+(function detectLoginCallback() {
+  const isCallback = window.location.hash.includes('access_token') || 
+                     window.location.search.includes('type=');
+  if (isCallback) {
+    setTimeout(() => {
+      const isNotPWA = !window.matchMedia('(display-mode: standalone)').matches && 
+                       !navigator.standalone;
+      if (isNotPWA) showPwaRedirectBanner();
+    }, 2000);
+  }
+})();
+
+function showPwaRedirectBanner() {
+  if (document.getElementById('pwa-redirect-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'pwa-redirect-banner';
+  banner.innerHTML = `
+    <div style="position:fixed;top:0;left:0;right:0;background:linear-gradient(135deg,#27ae60,#2ecc71);color:white;padding:14px 20px;text-align:center;z-index:9999;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+      <div style="font-weight:600;margin-bottom:4px;">✅ 登录成功！进度已同步 🎉</div>
+      <div style="font-size:13px;opacity:0.95;margin-bottom:8px;">请关闭此页面，回到「主屏幕应用」刷新查看最新进度</div>
+      <button onclick="document.getElementById('pwa-redirect-banner').remove()" style="padding:6px 16px;background:rgba(255,255,255,0.25);border:none;border-radius:20px;color:white;font-size:13px;cursor:pointer;">知道了</button>
+    </div>`;
+  document.body.prepend(banner);
+  setTimeout(() => { if (banner.parentElement) banner.remove(); }, 30000);
 }
