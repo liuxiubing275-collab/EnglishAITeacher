@@ -1080,6 +1080,10 @@ async function gradeArticleChallenge() {
     });
     const data = await res.json();
     const aiResponse = data.choices[0].message.content; 
+
+    console.log("🔍 AI 原始响应:", aiResponse); // 👈 加这行！
+    console.log("🔍 响应长度:", aiResponse?.length);
+
     const getFeedback = (tag) => {
       const match = aiResponse.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
       return match ? match[1].trim() : "AI 老师开小差了，未生成本句点评。";
