@@ -1071,7 +1071,21 @@ async function gradeArticleChallenge() {
   document.getElementById('artChallengeResult').style.display = 'block';
   feedbackBox.innerHTML = "<p style='text-align:center;'>⏳ AI 老师正在逐字逐句批改中...</p>";
   let checkContent = artChallengeData.map((item, i) => `第${i+1}题：\n【中文原意】：${item.zh}\n【课文原句】：${item.en}\n【用户翻译】：${inputs[i].value.trim() || "（未填写）"}\n-----------------------------------`).join('\n');
-  const prompt = `你是一位极度细心的英语私教。请对比用户的“回译”和“课文原句”。必须【逐题】分析。即使意思对，也要指出用户用词与原句的细微差别。如果有语法错误，请明确指出。格式要求：为了方便程序解析，请你将每道题的点评分别放在 <p1>, <p2>, <p3> 标签中。每条点评内部包含：[分数] + 具体的错误/差异分析。`;
+const totalQuestions = artChallengeData.length;
+const prompt = `你是一位极度细心的英语私教。共 ${totalQuestions} 道题，请【逐题整体批改】。
+
+【重要规则】：
+1️⃣ 每题的【中文原意】【课文原句】【用户翻译】可能包含多个句子，请作为**一个整体**点评，绝对不要拆分成多题！
+2️⃣ 输出格式：第 1 题→<p1>...</p1>，第 2 题→<p2>...</p2>，...，第 ${totalQuestions} 题→<p${totalQuestions}>...</p${totalQuestions}>
+3️⃣ 标签内格式：[分数/10] + 具体分析（用词/语法/标点/流畅度）
+
+【示例】：
+输入：第 1 题：【中文】早上起床。我刷牙。【原句】I wake up. I brush my teeth.【用户】I wake up and brush tooth.
+输出：<p1>[7/10] 整体意思正确。"brush tooth" 应为 "brush my teeth"（缺物主代词+复数）。</p1>
+
+---
+现在批改以下 ${totalQuestions} 题：
+${checkContent}`;
   try {
     const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
       method: 'POST',
