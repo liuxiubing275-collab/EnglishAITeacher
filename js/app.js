@@ -1062,82 +1062,130 @@ async function startArticleChallenge() {
   const qBox = document.getElementById('artChallengeQuestions');
   qBox.innerHTML = artChallengeData.map((item, i) => `<div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;"><p style="font-weight:bold; color:#2c3e50;">句 ${i+1} (来自原课文):</p><p style="background:#fffbe6; padding:10px; border-radius:8px;">${item.zh}</p><textarea class="art-user-input" data-idx="${i}" placeholder="尝试默写出对应的原英文句子..." rows="2" style="margin-top:10px;"></textarea></div>`).join('');
 }
+
 async function gradeArticleChallenge() {
   const apiKey = localStorage.getItem('silicon_api_key');
   if (!apiKey) return alert("请在‘互动聊天’版块设置 API Key");
+
   const inputs = document.querySelectorAll('.art-user-input');
+  if (!artChallengeData || artChallengeData.length === 0 || inputs.length === 0) {
+    return alert("⚠️ 暂无题目或输入框未找到");
+  }
+
   const feedbackBox = document.getElementById('artChallengeComparison');
-  document.getElementById('artChallengeWorking').style.display = 'none';
-  document.getElementById('artChallengeResult').style.display = 'block';
-  feedbackBox.innerHTML = "<p style='text-align:center;'>⏳ AI 老师正在逐字逐句批改中...</p>";
-let checkContent = artChallengeData.map((item, i) => {
-  return `
-### QUESTION ${i+1} START ###
-【中文原意】：${item.zh}
-【课文原句】：${item.en}
-【用户翻译】：${inputs[i].value.trim() || "（未填写）"}
-### QUESTION ${i+1} END ###`.trim();
-}).join('\n\n');
-const totalQuestions = artChallengeData.length;
-const prompt = `你是一位极度细心的英语私教。共 ${totalQuestions} 道题，请【逐题整体批改】。
+  const workingEl = document.getElementById('artChallengeWorking');
+  const resultEl = document.getElementById('artChallengeResult');
 
-【重要规则】：
-1️⃣ 每题的【中文原意】【课文原句】【用户翻译】可能包含多个句子，请作为**一个整体**点评，绝对不要拆分成多题！
-2️⃣ 输出格式：第 1 题→<p1>...</p1>，第 2 题→<p2>...</p2>，...，第 ${totalQuestions} 题→<p${totalQuestions}>...</p${totalQuestions}>
-3️⃣ 标签内格式：[分数/10] + 具体分析（用词/语法/标点/流畅度）
+  // 切换 UI 状态
+  if (workingEl) workingEl.style.display = 'none';
+  if (resultEl) resultEl.style.display = 'block';
+  feedbackBox.innerHTML = "<p style='text-align:center; font-size:16px;'>⏳ AI 老师正在逐题批改中，请稍候...</p>";
 
-【示例】：
-输入：第 1 题：【中文】早上起床。我刷牙。【原句】I wake up. I brush my teeth.【用户】I wake up and brush tooth.
-输出：<p1>[7/10] 整体意思正确。"brush tooth" 应为 "brush my teeth"（缺物主代词+复数）。</p1>
+  // 1. 构造题目数据（增加清晰分隔符）
+  const checkContent = artChallengeData.map((item, i) => {
+    const userTrans = inputs[i]?.value?.trim() || "（未填写）";
+    return `### 题目 ${i + 1} ###\n【中文原意】：${item.zh}\n【课文原句】：${item.en}\n【用户翻译】：${userTrans}`;
+  }).join('\n\n');
 
----
-现在批改以下 ${totalQuestions} 题：
-${checkContent}
+  const totalQuestions = artChallengeData.length;
 
-⚠️ 严格约束：
-- 每题只输出 1 个标签（<p1> 或 <p2>...），绝对不要把一题拆成多个点评！
-- 按顺序输出 ${totalQuestions} 个标签即可，不要多、不要少、不要重复！
-- 如果用户未填写，直接写：[0/10] 未填写，请补充翻译。`;
+  // 2. 构造 Prompt（精简稳定版，防小模型注意力崩溃）
+  const prompt = `你是一位专业的英语私教。请逐题批改以下 ${totalQuestions} 道翻译练习。
+
+【输出格式要求】
+- 必须严格按顺序输出 ${totalQuestions} 个标签，每题一个：第1题用 <p1>，第2题用 <p2>，依此类推至 <p${totalQuestions}>。
+- 标签内格式：[分数/10] + 简练点评（指出拼写/语法/用词差异，未填写则直接写 [0/10] 未填写）。
+- 每题只输出 1 个标签，不要拆分句子，不要附加任何解释文字。
+
+【待批改内容】
+${checkContent}`;
 
   try {
+    // 3. 调用 SiliconFlow API（优化参数防复读/崩溃）
     const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'Qwen/Qwen2.5-7B-Instruct', messages: [{ role: "system", content: "你是一个精准的英语翻译批改助手。" }, { role: "user", content: prompt + "\n" + checkContent }], temperature: 0.3 })
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'Qwen/Qwen2.5-7B-Instruct',
+        messages: [
+          { role: "system", content: "你是一个精准的英语翻译批改助手。只输出要求的 XML 标签格式，不附加任何解释。" },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.6,          // 适度提高，打破死循环
+        top_p: 0.9,
+        repetition_penalty: 1.1,   // 🌟 关键：强制打断模型重复倾向
+        max_tokens: 1000           // 限制长度，防超时/刷额度
+      })
     });
+
+    if (!res.ok) throw new Error(`API 请求失败: ${res.status} ${res.statusText}`);
     const data = await res.json();
-    const aiResponse = data.choices[0].message.content; 
 
-    console.log("🔍 AI 原始响应:", aiResponse); // 👈 加这行！
-    console.log("🔍 响应长度:", aiResponse?.length);
-
-const getFeedback = (tag, index) => {
-  const regex = new RegExp(`<\\s*${tag}\\s*>([\\s\\S]*?)<\\s*/\\s*${tag}\\s*>`, 'i');
-  const match = aiResponse.match(regex);
-  
-  if (match && match[1]) {
-    let content = match[1].trim();
-    
-    // 🔍 兜底校验：如果点评提到当前题课文里没有的关键词，可能是错位
-    const currentEn = artChallengeData[index]?.en?.toLowerCase() || "";
-    const suspiciousWords = ["sandwich", "lunch break", "coworkers"]; // 题目2的关键词
-    if (index === 2 && suspiciousWords.some(w => content.toLowerCase().includes(w)) && !currentEn.includes("sandwich")) {
-      return `⚠️ 点评可能错位，请重试。原始内容：${content.slice(0, 100)}...`;
+    if (!data?.choices?.[0]?.message?.content) {
+      throw new Error("API 返回数据格式异常");
     }
-    return content;
-  }
-  return "AI 老师开小差了，未生成本句点评。";
-};
 
-    let html = '<h3 style="color:#007AFF;">📋 AI 深度批改报告：</h3>';
+    let aiResponse = data.choices[0].message.content.trim();
+
+    // 4. 安全拦截：检测模型崩溃/复读机现象
+    const cleanText = aiResponse.replace(/\s/g, '');
+    if (cleanText.length > 1500 || /(.)\1{4,}/.test(cleanText)) {
+      console.warn("⚠️ AI 响应异常（疑似崩溃/复读）", aiResponse.slice(0, 200));
+      feedbackBox.innerHTML = `<p style='color:#FF9500; text-align:center; padding:20px;'>⚠️ AI 批改时出现短暂抽风，请重试一次。</p>`;
+      return;
+    }
+
+    // 5. 解析响应（按顺序映射到对应题目）
+    const feedbacks = new Array(totalQuestions).fill(null);
+    const tagRegex = /<\s*p(\d+)\s*>([\s\S]*?)<\s*\/\s*p\1\s*>/gi;
+    let match;
+    while ((match = tagRegex.exec(aiResponse)) !== null) {
+      const index = parseInt(match[1], 10) - 1; // 转为 0-based 索引
+      if (index >= 0 && index < totalQuestions && !feedbacks[index]) {
+        feedbacks[index] = match[2].trim();
+      }
+    }
+
+    // 6. 生成 HTML（内置 XSS 防护）
+    const escapeHtml = (text) => {
+      if (!text) return "";
+      return text.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
+    };
+
+    let html = '<h3 style="color:#007AFF; margin-bottom:15px;">📋 AI 深度批改报告：</h3>';
+
     artChallengeData.forEach((item, i) => {
-      const feedback = getFeedback(`p${i+1}`);
-      html += `<div style="margin-bottom:18px; background:white; padding:15px; border-radius:15px; border:1px solid #E5E5EA; box-shadow: 0 2px 8px rgba(0,0,0,0.05);"><div style="font-size:12px; color:#8E8E93; margin-bottom:8px;">🎯 挑战题目 ${i+1}</div><p style="background:#F2F2F7; padding:10px; border-radius:10px; font-size:14px; margin:0 0 10px 0;"><b>中文：</b>${item.zh}</p><div style="display:flex; gap:12px; margin-bottom:10px;"><div style="flex:1; padding:8px; background:#FFF5F5; border-radius:8px; border-left:4px solid #FF3B30;"><small style="color:#FF3B30; font-weight:bold;">你的翻译</small><br><span style="color:#C0392B;">${inputs[i].value.trim() || "(未填写)"}</span></div><div style="flex:1; padding:8px; background:#F0FFF4; border-radius:8px; border-left:4px solid #34C759;"><small style="color:#34C759; font-weight:bold;">课文原句</small><br><span style="color:#1B5E20; font-weight:bold;">${item.en}</span></div></div><div style="background:#F8F9FF; padding:12px; border-radius:10px; font-size:14px; color:#4834D4; line-height:1.6; border:1px solid #D1D8FF;"><b>💡 AI 老师点评：</b><br>${feedback.replace(/\n/g, '<br>')}</div></div>`;
+      const userTrans = inputs[i]?.value?.trim() || "(未填写)";
+      const feedback = feedbacks[i] || "⚠️ 未获取到点评，请重试。";
+
+      html += `
+        <div style="margin-bottom:18px; background:white; padding:15px; border-radius:15px; border:1px solid #E5E5EA; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+          <div style="font-size:12px; color:#8E8E93; margin-bottom:8px;">🎯 挑战题目 ${i + 1}</div>
+          <p style="background:#F2F2F7; padding:10px; border-radius:10px; font-size:14px; margin:0 0 10px 0;"><b>中文：</b>${escapeHtml(item.zh)}</p>
+          <div style="display:flex; gap:12px; margin-bottom:10px; flex-wrap: wrap;">
+            <div style="flex:1; min-width:140px; padding:8px; background:#FFF5F5; border-radius:8px; border-left:4px solid #FF3B30;">
+              <small style="color:#FF3B30; font-weight:bold;">你的翻译</small><br>
+              <span style="color:#C0392B;">${escapeHtml(userTrans)}</span>
+            </div>
+            <div style="flex:1; min-width:140px; padding:8px; background:#F0FFF4; border-radius:8px; border-left:4px solid #34C759;">
+              <small style="color:#34C759; font-weight:bold;">课文原句</small><br>
+              <span style="color:#1B5E20; font-weight:bold;">${escapeHtml(item.en)}</span>
+            </div>
+          </div>
+          <div style="background:#F8F9FF; padding:12px; border-radius:10px; font-size:14px; color:#4834D4; line-height:1.6; border:1px solid #D1D8FF;">
+            <b>💡 AI 老师点评：</b><br>${feedback.replace(/\n/g, '<br>')}
+          </div>
+        </div>`;
     });
+
     feedbackBox.innerHTML = html;
+
   } catch (e) {
-    console.error(e);
-    feedbackBox.innerHTML = "<p style='color:red;'>批改请求失败，请检查 API Key 或网络环境。</p>";
+    console.error("❌ 批改请求失败:", e);
+    feedbackBox.innerHTML = `<p style='color:red; text-align:center; padding:20px;'>❌ 批改失败：${e.message || '网络或 API Key 异常，请检查后重试'}</p>`;
   }
 }
 function resetArtChallenge() {
