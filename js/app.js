@@ -1070,7 +1070,14 @@ async function gradeArticleChallenge() {
   document.getElementById('artChallengeWorking').style.display = 'none';
   document.getElementById('artChallengeResult').style.display = 'block';
   feedbackBox.innerHTML = "<p style='text-align:center;'>⏳ AI 老师正在逐字逐句批改中...</p>";
-  let checkContent = artChallengeData.map((item, i) => `第${i+1}题：\n【中文原意】：${item.zh}\n【课文原句】：${item.en}\n【用户翻译】：${inputs[i].value.trim() || "（未填写）"}\n-----------------------------------`).join('\n');
+let checkContent = artChallengeData.map((item, i) => {
+  return `
+### QUESTION ${i+1} START ###
+【中文原意】：${item.zh}
+【课文原句】：${item.en}
+【用户翻译】：${inputs[i].value.trim() || "（未填写）"}
+### QUESTION ${i+1} END ###`.trim();
+}).join('\n\n');
 const totalQuestions = artChallengeData.length;
 const prompt = `你是一位极度细心的英语私教。共 ${totalQuestions} 道题，请【逐题整体批改】。
 
@@ -1085,7 +1092,13 @@ const prompt = `你是一位极度细心的英语私教。共 ${totalQuestions} 
 
 ---
 现在批改以下 ${totalQuestions} 题：
-${checkContent}`;
+${checkContent}
+
+⚠️ 严格约束：
+- 每题只输出 1 个标签（<p1> 或 <p2>...），绝对不要把一题拆成多个点评！
+- 按顺序输出 ${totalQuestions} 个标签即可，不要多、不要少、不要重复！
+- 如果用户未填写，直接写：[0/10] 未填写，请补充翻译。`;
+
   try {
     const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
       method: 'POST',
@@ -1098,10 +1111,24 @@ ${checkContent}`;
     console.log("🔍 AI 原始响应:", aiResponse); // 👈 加这行！
     console.log("🔍 响应长度:", aiResponse?.length);
 
-    const getFeedback = (tag) => {
-      const match = aiResponse.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
-      return match ? match[1].trim() : "AI 老师开小差了，未生成本句点评。";
-    };
+const getFeedback = (tag, index) => {
+  const regex = new RegExp(`<\\s*${tag}\\s*>([\\s\\S]*?)<\\s*/\\s*${tag}\\s*>`, 'i');
+  const match = aiResponse.match(regex);
+  
+  if (match && match[1]) {
+    let content = match[1].trim();
+    
+    // 🔍 兜底校验：如果点评提到当前题课文里没有的关键词，可能是错位
+    const currentEn = artChallengeData[index]?.en?.toLowerCase() || "";
+    const suspiciousWords = ["sandwich", "lunch break", "coworkers"]; // 题目2的关键词
+    if (index === 2 && suspiciousWords.some(w => content.toLowerCase().includes(w)) && !currentEn.includes("sandwich")) {
+      return `⚠️ 点评可能错位，请重试。原始内容：${content.slice(0, 100)}...`;
+    }
+    return content;
+  }
+  return "AI 老师开小差了，未生成本句点评。";
+};
+
     let html = '<h3 style="color:#007AFF;">📋 AI 深度批改报告：</h3>';
     artChallengeData.forEach((item, i) => {
       const feedback = getFeedback(`p${i+1}`);
